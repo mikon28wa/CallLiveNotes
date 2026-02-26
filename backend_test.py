@@ -338,6 +338,85 @@ def main():
     else:
         print("⚠️ Skipping note deletion test - insufficient notes found")
     
+    # NEW BACKUP & RESTORE TESTS
+    print("\n" + "=" * 60)
+    print("🔄 STARTING BACKUP & RESTORE TESTS")
+    print("=" * 60)
+    
+    # Test 11: Create backup
+    total_tests += 1
+    success, backup_data = tester.test_create_backup()
+    if not success:
+        failed_tests.append("GET /backup")
+    
+    # Test 12: Add new phone number for merge testing
+    test_phone = "+1234567890"
+    total_tests += 1
+    success, _ = tester.test_create_note(test_phone, "Test note before restore")
+    if not success:
+        failed_tests.append(f"POST /notes/{test_phone} (pre-restore)")
+    
+    # Test 13: Restore with merge mode (should preserve existing data)
+    if backup_data:
+        total_tests += 1
+        success, _ = tester.test_restore_merge(backup_data)
+        if not success:
+            failed_tests.append("POST /restore (merge)")
+        
+        # Verify merge behavior - check if new phone number still exists
+        total_tests += 1
+        success, after_merge = tester.test_get_notes_for_number(test_phone)
+        if success and after_merge and after_merge.get("notes"):
+            print("✅ Verified: Merge mode preserved new data")
+        else:
+            failed_tests.append("Merge mode verification")
+            print("❌ Merge mode did not preserve new data")
+    
+    # Test 14: Add another test note for replace testing
+    test_phone2 = "+9999999999"
+    total_tests += 1
+    success, _ = tester.test_create_note(test_phone2, "Note to be replaced")
+    if not success:
+        failed_tests.append(f"POST /notes/{test_phone2} (pre-replace)")
+    
+    # Test 15: Create another backup before replace test
+    total_tests += 1
+    success, backup_data2 = tester.test_create_backup()
+    if not success:
+        failed_tests.append("GET /backup (second)")
+    
+    # Test 16: Add more notes after backup
+    total_tests += 1 
+    success, _ = tester.test_create_note("+5555555555", "This should disappear after replace")
+    if not success:
+        failed_tests.append("POST /notes/+5555555555 (temp)")
+    
+    # Test 17: Restore with replace mode (should remove new data)
+    if backup_data2:
+        total_tests += 1
+        success, _ = tester.test_restore_replace(backup_data2)
+        if not success:
+            failed_tests.append("POST /restore (replace)")
+        
+        # Verify replace behavior - check if temp note was removed
+        total_tests += 1
+        success, after_replace = tester.test_get_notes_for_number("+5555555555")
+        if success and after_replace and not after_replace.get("notes"):
+            print("✅ Verified: Replace mode removed new data correctly")
+        else:
+            # Could also be an empty notes array, which is valid for replace behavior
+            if after_replace and len(after_replace.get("notes", [])) == 0:
+                print("✅ Verified: Replace mode resulted in empty notes (acceptable)")
+            else:
+                failed_tests.append("Replace mode verification")
+                print("❌ Replace mode did not remove new data correctly")
+    
+    # Test 18: Error handling tests
+    total_tests += 1
+    success = tester.test_restore_error_handling()
+    if not success:
+        failed_tests.append("POST /restore (error handling)")
+    
     # Summary
     print("=" * 60)
     print("📊 TEST SUMMARY")
