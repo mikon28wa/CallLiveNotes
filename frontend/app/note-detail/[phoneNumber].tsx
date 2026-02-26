@@ -304,7 +304,32 @@ export default function NoteDetail() {
               {callNotes?.notes.length || 0} Notizen
             </Text>
           </View>
+          <TouchableOpacity
+            onPress={() => setShowExportMenu(!showExportMenu)}
+            style={styles.exportButton}
+          >
+            <Ionicons name="share-outline" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
+
+        {showExportMenu && (
+          <View style={styles.exportMenu}>
+            <TouchableOpacity
+              style={styles.exportMenuItem}
+              onPress={handleExportPDF}
+            >
+              <Ionicons name="document-text-outline" size={20} color="#4CAF50" />
+              <Text style={styles.exportMenuText}>Als PDF exportieren</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.exportMenuItem}
+              onPress={handleExportCSV}
+            >
+              <Ionicons name="grid-outline" size={20} color="#4CAF50" />
+              <Text style={styles.exportMenuText}>Als CSV exportieren</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <FlatList
           data={callNotes?.notes || []}
