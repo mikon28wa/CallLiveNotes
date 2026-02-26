@@ -133,36 +133,61 @@ export default function NoteDetail() {
   };
 
   const handleDeleteNote = async (noteId: string) => {
-    Alert.alert(
-      'Notiz löschen',
-      'Möchtest du diese Notiz wirklich löschen?',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Löschen',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await fetch(
-                `${EXPO_PUBLIC_BACKEND_URL}/api/notes/${encodeURIComponent(decodedPhoneNumber)}/${noteId}`,
-                {
-                  method: 'DELETE',
-                }
-              );
+    if (Platform.OS === 'web') {
+      // Auf Web: einfache confirm-Dialog
+      const confirmed = window.confirm('Möchtest du diese Notiz wirklich löschen?');
+      if (!confirmed) return;
+      
+      try {
+        const response = await fetch(
+          `${EXPO_PUBLIC_BACKEND_URL}/api/notes/${encodeURIComponent(decodedPhoneNumber)}/${noteId}`,
+          {
+            method: 'DELETE',
+          }
+        );
 
-              if (response.ok) {
-                await fetchNotes();
-              } else {
+        if (response.ok) {
+          await fetchNotes();
+        } else {
+          window.alert('Fehler: Notiz konnte nicht gelöscht werden');
+        }
+      } catch (error) {
+        console.error('Fehler beim Löschen der Notiz:', error);
+        window.alert('Fehler: Notiz konnte nicht gelöscht werden');
+      }
+    } else {
+      // Auf Mobile: Native Alert
+      Alert.alert(
+        'Notiz löschen',
+        'Möchtest du diese Notiz wirklich löschen?',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Löschen',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const response = await fetch(
+                  `${EXPO_PUBLIC_BACKEND_URL}/api/notes/${encodeURIComponent(decodedPhoneNumber)}/${noteId}`,
+                  {
+                    method: 'DELETE',
+                  }
+                );
+
+                if (response.ok) {
+                  await fetchNotes();
+                } else {
+                  Alert.alert('Fehler', 'Notiz konnte nicht gelöscht werden');
+                }
+              } catch (error) {
+                console.error('Fehler beim Löschen der Notiz:', error);
                 Alert.alert('Fehler', 'Notiz konnte nicht gelöscht werden');
               }
-            } catch (error) {
-              console.error('Fehler beim Löschen der Notiz:', error);
-              Alert.alert('Fehler', 'Notiz konnte nicht gelöscht werden');
-            }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const formatDateTime = (dateString: string) => {
