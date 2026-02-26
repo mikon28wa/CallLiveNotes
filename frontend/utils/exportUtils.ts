@@ -172,24 +172,39 @@ export const exportSingleToCSV = async (callNotes: CallNotes) => {
 export const createBackup = async (backupData: any) => {
   try {
     const fileName = `backup_anrufnotizen_${new Date().toISOString().split('T')[0]}.json`;
-    const fileUri = FileSystem.documentDirectory + fileName;
+    const jsonString = JSON.stringify(backupData, null, 2);
     
-    await FileSystem.writeAsStringAsync(
-      fileUri,
-      JSON.stringify(backupData, null, 2),
-      {
-        encoding: FileSystem.EncodingType.UTF8,
-      }
-    );
+    if (Platform.OS === 'web') {
+      // Web: Download als Datei
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return fileName;
+    } else {
+      // Mobile: FileSystem + Sharing
+      const fileUri = FileSystem.documentDirectory + fileName;
+      
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        jsonString,
+        {
+          encoding: FileSystem.EncodingType.UTF8,
+        }
+      );
 
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/json',
         dialogTitle: 'Backup speichern',
       });
-    }
 
-    return fileUri;
+      return fileUri;
+    }
   } catch (error) {
     console.error('Fehler beim Backup:', error);
     Alert.alert('Fehler', 'Backup konnte nicht erstellt werden');
