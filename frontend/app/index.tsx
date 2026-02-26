@@ -16,6 +16,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CallDetectionService from '../components/CallDetectionService';
+import FloatingCallButton from '../components/FloatingCallButton';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportToCSV, createBackup } from '../utils/exportUtils';
 
