@@ -90,6 +90,51 @@ Nach Erteilung der Berechtigungen:
 3. Während des Anrufs können Notizen erstellt werden
 4. Nach dem Anruf bleiben die Notizen gespeichert
 
+### 4. Export-Funktionen
+
+**Im Detail-Screen (einzelne Telefonnummer):**
+- Tippe auf das **Teilen-Symbol** (oben rechts)
+- Wähle:
+  - **Als PDF exportieren**: Erstellt ein formatiertes PDF mit allen Notizen der Nummer
+  - **Als CSV exportieren**: Erstellt eine CSV-Datei mit allen Notizen der Nummer
+
+**Im Hauptmenü (alle Daten):**
+- Tippe auf das **Menü-Symbol** (⋮ oben rechts)
+- Wähle **"Alle als CSV exportieren"**
+- CSV-Datei enthält alle Notizen aller Telefonnummern
+
+**Export-Optionen:**
+- Dateien werden über das System-Share-Menü geteilt
+- Speichern in Cloud (Google Drive, Dropbox, etc.)
+- Per E-Mail versenden
+- In andere Apps exportieren
+
+### 5. Backup & Sync
+
+**Backup erstellen:**
+1. Öffne das **Hauptmenü** (⋮ oben rechts)
+2. Wähle **"Backup erstellen"**
+3. JSON-Datei wird erstellt mit allen Daten:
+   - Alle Telefonnummern
+   - Alle Notizen mit Zeitstempeln
+   - Metadaten (Datum, Version)
+4. Speichere die Datei sicher (Cloud, lokaler Speicher)
+
+**Backup wiederherstellen:**
+1. Öffne das **Hauptmenü** (⋮ oben rechts)
+2. Wähle **"Backup wiederherstellen"**
+3. Wähle die Backup-JSON-Datei
+4. Wähle den Wiederherstellungs-Modus:
+   - **Zusammenführen**: Fügt Backup-Daten zu bestehenden Daten hinzu (keine Duplikate)
+   - **Ersetzen**: Löscht alle aktuellen Daten und ersetzt sie durch das Backup
+5. Bestätigung und Import
+
+**Backup-Empfehlungen:**
+- Erstelle regelmäßig Backups (wöchentlich oder monatlich)
+- Speichere Backups in der Cloud für Geräte-Wechsel
+- Teste Wiederherstellung gelegentlich
+- Bewahre mehrere Backup-Versionen auf
+
 ## 🎨 Design
 
 - **Dunkles Theme**: Modernes, augenfreundliches Design
