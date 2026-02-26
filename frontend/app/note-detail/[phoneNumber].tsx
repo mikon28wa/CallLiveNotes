@@ -402,6 +402,27 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flex: 1,
   },
+  exportButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  exportMenu: {
+    backgroundColor: '#1e1e1e',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+    padding: 8,
+  },
+  exportMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  exportMenuText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 12,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
