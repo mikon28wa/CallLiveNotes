@@ -86,14 +86,35 @@ export default function Index() {
   const handleCreateBackup = async () => {
     try {
       setShowMenu(false);
+      
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/backup`);
+      
+      if (!response.ok) {
+        throw new Error(`Backend-Fehler: ${response.status}`);
+      }
+      
       const backupData = await response.json();
       
+      if (!backupData || !backupData.data) {
+        throw new Error('Ungültige Backup-Daten vom Server');
+      }
+      
       await createBackup(backupData);
-      Alert.alert('Erfolg', 'Backup wurde erstellt und gespeichert');
+      
+      if (Platform.OS === 'web') {
+        window.alert('Backup wurde erstellt und heruntergeladen');
+      } else {
+        Alert.alert('Erfolg', 'Backup wurde erstellt und gespeichert');
+      }
     } catch (error) {
       console.error('Backup Fehler:', error);
-      Alert.alert('Fehler', 'Backup konnte nicht erstellt werden');
+      const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Fehler beim Backup: ${errorMsg}`);
+      } else {
+        Alert.alert('Fehler', `Backup konnte nicht erstellt werden: ${errorMsg}`);
+      }
     }
   };
 
