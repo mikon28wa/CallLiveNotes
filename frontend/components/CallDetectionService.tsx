@@ -135,8 +135,11 @@ export default function CallDetectionService({
         }
       );
 
-      // Navigate to note detail screen
-      router.push(`/note-detail/${encodeURIComponent(phoneNumber)}`);
+      // WICHTIG: Nicht mehr automatisch navigieren!
+      // Stattdessen Floating Button anzeigen (wird vom Parent-Component gemacht)
+      if (onCallStarted) {
+        onCallStarted(phoneNumber);
+      }
 
       if (onCallDetected) {
         onCallDetected();
