@@ -22,7 +22,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "READ_PHONE_STATE",
-        "READ_CALL_LOG"
+        "READ_CALL_LOG",
+        "SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
