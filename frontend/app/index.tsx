@@ -232,7 +232,59 @@ export default function Index() {
       
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Anrufnotizen</Text>
+        <TouchableOpacity
+          onPress={() => setShowMenu(true)}
+          style={styles.menuButton}
+        >
+          <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMenu(false)}
+        >
+          <View style={styles.menuModal}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Optionen</Text>
+              <TouchableOpacity onPress={() => setShowMenu(false)}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleExportCSV}
+            >
+              <Ionicons name="document-outline" size={24} color="#4CAF50" />
+              <Text style={styles.menuItemText}>Alle als CSV exportieren</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleCreateBackup}
+            >
+              <Ionicons name="cloud-download-outline" size={24} color="#4CAF50" />
+              <Text style={styles.menuItemText}>Backup erstellen</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleRestoreBackup}
+            >
+              <Ionicons name="cloud-upload-outline" size={24} color="#FF9800" />
+              <Text style={styles.menuItemText}>Backup wiederherstellen</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
