@@ -44,6 +44,7 @@ export default function NoteDetail() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const fetchNotes = async () => {
     try {
