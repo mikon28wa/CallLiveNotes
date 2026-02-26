@@ -10,6 +10,12 @@ Eine mobile App zum Erstellen und Verwalten von Notizen während Telefonanrufen.
 - **Suchfunktion**: Schnelles Finden von Telefonnummern
 - **Zeitliche Sortierung**: Anrufe werden nach dem letzten Anruf sortiert (neueste zuerst)
 - **Bearbeitung jederzeit möglich**: Alle Notizen können nachträglich bearbeitet oder gelöscht werden
+- **Export-Funktionen**:
+  - **PDF-Export**: Notizen einer Nummer als formatiertes PDF exportieren
+  - **CSV-Export**: Einzelne oder alle Notizen als CSV-Tabelle exportieren
+- **Backup & Sync**:
+  - **Backup erstellen**: Vollständiges Backup aller Daten als JSON-Datei
+  - **Backup wiederherstellen**: Daten aus Backup importieren (Zusammenführen oder Ersetzen)
 - **Kein Zugriff aufs Telefonbuch nötig**: Die App speichert nur die Telefonnummern, zu denen Notizen existieren
 
 ## 🚀 Technologie
