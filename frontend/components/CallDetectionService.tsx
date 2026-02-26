@@ -76,6 +76,11 @@ export default function CallDetectionService({
 
   const startCallDetection = () => {
     try {
+      if (!CallDetectorManager) {
+        console.log('CallDetectorManager not available');
+        return;
+      }
+
       callDetectorRef.current = new CallDetectorManager(
         (event: any, phoneNumber: string | null) => {
           console.log('Call Event:', event, 'Phone Number:', phoneNumber);
