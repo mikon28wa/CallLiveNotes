@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Alert, PermissionsAndroid, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,8 @@ const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 interface CallDetectionServiceProps {
   onCallDetected?: () => void;
+  onCallStarted?: (phoneNumber: string) => void;
+  onCallEnded?: () => void;
 }
 
 export default function CallDetectionService({
