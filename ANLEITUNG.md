@@ -207,6 +207,53 @@ Löscht eine Notiz.
 ### POST /api/notes/{phone_number}/call-started
 Markiert den Start eines Anrufs (aktualisiert `last_call_time`).
 
+### GET /api/backup
+Erstellt ein vollständiges Backup aller Anrufnotizen.
+
+**Response:**
+```json
+{
+  "backup_date": "2025-02-26T12:00:00",
+  "version": "1.0",
+  "total_entries": 5,
+  "data": [
+    {
+      "phone_number": "+491234567890",
+      "notes": [...],
+      "last_call_time": "2025-02-26T12:00:00"
+    }
+  ]
+}
+```
+
+### POST /api/restore
+Stellt ein Backup wieder her.
+
+**Body:**
+```json
+{
+  "backup_date": "2025-02-26T12:00:00",
+  "version": "1.0",
+  "total_entries": 5,
+  "data": [...],
+  "mode": "merge"
+}
+```
+
+**Modi:**
+- `merge` (Standard): Fügt Backup-Daten zu bestehenden hinzu, keine Duplikate
+- `replace`: Löscht alle Daten und ersetzt sie durch Backup
+
+**Response:**
+```json
+{
+  "message": "Backup wiederhergestellt",
+  "mode": "merge",
+  "restored_notes": 15,
+  "skipped_entries": 2
+}
+```
+
 ## 📊 Datenbank-Schema
 
 ### Collection: `call_notes`
