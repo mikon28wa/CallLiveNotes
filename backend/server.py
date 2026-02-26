@@ -203,6 +203,96 @@ async def mark_call_started(phone_number: str):
     return {"message": "Anruf registriert"}
 
 
+@api_router.get("/backup")
+async def create_backup():
+    """
+    Erstellt ein vollständiges Backup aller Anrufnotizen.
+    """
+    cursor = db.call_notes.find({})
+    all_notes = await cursor.to_list(10000)
+    
+    # Konvertiere ObjectId zu String für JSON-Serialisierung
+    for note in all_notes:
+        if "_id" in note:
+            note["_id"] = str(note["_id"])
+    
+    backup_data = {
+        "backup_date": datetime.utcnow().isoformat(),
+        "version": "1.0",
+        "total_entries": len(all_notes),
+        "data": all_notes
+    }
+    
+    return backup_data
+
+
+@api_router.post("/restore")
+async def restore_backup(backup_data: dict):
+    """
+    Stellt ein Backup wieder her.
+    Optionen: merge (Standard) oder replace
+    """
+    try:
+        data = backup_data.get("data", [])
+        mode = backup_data.get("mode", "merge")  # merge oder replace
+        
+        if mode == "replace":
+            # Alle existierenden Daten löschen
+            await db.call_notes.delete_many({})
+        
+        restored_count = 0
+        skipped_count = 0
+        
+        for item in data:
+            phone_number = item.get("phone_number")
+            if not phone_number:
+                continue
+            
+            # Entferne _id aus dem Import-Datensatz
+            if "_id" in item:
+                del item["_id"]
+            
+            if mode == "merge":
+                # Prüfen, ob Telefonnummer bereits existiert
+                existing = await db.call_notes.find_one({"phone_number": phone_number})
+                
+                if existing:
+                    # Merge: Nur neue Notizen hinzufügen
+                    existing_note_ids = {note["note_id"] for note in existing.get("notes", [])}
+                    new_notes = [note for note in item.get("notes", []) 
+                                if note["note_id"] not in existing_note_ids]
+                    
+                    if new_notes:
+                        await db.call_notes.update_one(
+                            {"phone_number": phone_number},
+                            {
+                                "$push": {"notes": {"$each": new_notes}},
+                                "$set": {"last_call_time": item.get("last_call_time", datetime.utcnow())}
+                            }
+                        )
+                        restored_count += len(new_notes)
+                    else:
+                        skipped_count += 1
+                else:
+                    # Neue Telefonnummer hinzufügen
+                    await db.call_notes.insert_one(item)
+                    restored_count += len(item.get("notes", []))
+            else:
+                # Replace: Einfach alle Daten einfügen
+                await db.call_notes.insert_one(item)
+                restored_count += len(item.get("notes", []))
+        
+        return {
+            "message": "Backup wiederhergestellt",
+            "mode": mode,
+            "restored_notes": restored_count,
+            "skipped_entries": skipped_count
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Fehler beim Wiederherstellen: {str(e)}")
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
