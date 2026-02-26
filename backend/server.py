@@ -67,7 +67,11 @@ async def get_all_phone_numbers(search: Optional[str] = None):
     if search:
         query["phone_number"] = {"$regex": search, "$options": "i"}
     
-    cursor = db.call_notes.find(query).sort("last_call_time", -1)
+    # Optimiert: Nur benötigte Felder abrufen
+    cursor = db.call_notes.find(
+        query,
+        {"phone_number": 1, "notes": 1, "last_call_time": 1}
+    ).sort("last_call_time", -1).limit(1000)
     call_notes_list = await cursor.to_list(1000)
     
     summaries = []
