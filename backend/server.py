@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
 
@@ -27,30 +27,181 @@ api_router = APIRouter(prefix="/api")
 
 
 # Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+class Note(BaseModel):
+    note_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    text: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class CallNotes(BaseModel):
+    phone_number: str
+    notes: List[Note] = []
+    last_call_time: datetime = Field(default_factory=datetime.utcnow)
 
-# Add your routes to the router instead of directly to app
+class NoteCreate(BaseModel):
+    text: str
+
+class NoteUpdate(BaseModel):
+    text: str
+
+class PhoneNumberSummary(BaseModel):
+    phone_number: str
+    last_note: Optional[str] = None
+    last_call_time: datetime
+    note_count: int
+
+
+# Routes
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Anrufnotizen API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+@api_router.get("/notes", response_model=List[PhoneNumberSummary])
+async def get_all_phone_numbers(search: Optional[str] = None):
+    """
+    Gibt alle Telefonnummern mit Notizen zurück, sortiert nach letztem Anruf.
+    Optionaler Suchparameter für Telefonnummer.
+    """
+    query = {}
+    if search:
+        query["phone_number"] = {"$regex": search, "$options": "i"}
+    
+    cursor = db.call_notes.find(query).sort("last_call_time", -1)
+    call_notes_list = await cursor.to_list(1000)
+    
+    summaries = []
+    for call_note in call_notes_list:
+        notes = call_note.get("notes", [])
+        last_note_text = notes[-1]["text"] if notes else None
+        
+        summaries.append(PhoneNumberSummary(
+            phone_number=call_note["phone_number"],
+            last_note=last_note_text,
+            last_call_time=call_note["last_call_time"],
+            note_count=len(notes)
+        ))
+    
+    return summaries
+
+
+@api_router.get("/notes/{phone_number}", response_model=CallNotes)
+async def get_notes_for_number(phone_number: str):
+    """
+    Gibt alle Notizen für eine bestimmte Telefonnummer zurück.
+    """
+    call_notes = await db.call_notes.find_one({"phone_number": phone_number})
+    
+    if not call_notes:
+        # Wenn keine Notizen existieren, erstelle einen neuen Eintrag
+        new_call_notes = CallNotes(phone_number=phone_number)
+        await db.call_notes.insert_one(new_call_notes.dict())
+        return new_call_notes
+    
+    return CallNotes(**call_notes)
+
+
+@api_router.post("/notes/{phone_number}", response_model=Note)
+async def create_note(phone_number: str, note_input: NoteCreate):
+    """
+    Erstellt eine neue Notiz für eine Telefonnummer.
+    """
+    new_note = Note(text=note_input.text)
+    
+    # Prüfen, ob bereits Notizen für diese Nummer existieren
+    call_notes = await db.call_notes.find_one({"phone_number": phone_number})
+    
+    if call_notes:
+        # Notiz hinzufügen und last_call_time aktualisieren
+        await db.call_notes.update_one(
+            {"phone_number": phone_number},
+            {
+                "$push": {"notes": new_note.dict()},
+                "$set": {"last_call_time": datetime.utcnow()}
+            }
+        )
+    else:
+        # Neuen Eintrag erstellen
+        new_call_notes = CallNotes(
+            phone_number=phone_number,
+            notes=[new_note]
+        )
+        await db.call_notes.insert_one(new_call_notes.dict())
+    
+    return new_note
+
+
+@api_router.put("/notes/{phone_number}/{note_id}", response_model=Note)
+async def update_note(phone_number: str, note_id: str, note_update: NoteUpdate):
+    """
+    Aktualisiert eine bestehende Notiz.
+    """
+    call_notes = await db.call_notes.find_one({"phone_number": phone_number})
+    
+    if not call_notes:
+        raise HTTPException(status_code=404, detail="Telefonnummer nicht gefunden")
+    
+    # Notiz in der Liste finden und aktualisieren
+    notes = call_notes.get("notes", [])
+    updated = False
+    
+    for i, note in enumerate(notes):
+        if note["note_id"] == note_id:
+            notes[i]["text"] = note_update.text
+            notes[i]["updated_at"] = datetime.utcnow()
+            updated = True
+            break
+    
+    if not updated:
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+    
+    # Aktualisierte Notizen speichern
+    await db.call_notes.update_one(
+        {"phone_number": phone_number},
+        {"$set": {"notes": notes}}
+    )
+    
+    # Aktualisierte Notiz zurückgeben
+    for note in notes:
+        if note["note_id"] == note_id:
+            return Note(**note)
+
+
+@api_router.delete("/notes/{phone_number}/{note_id}")
+async def delete_note(phone_number: str, note_id: str):
+    """
+    Löscht eine Notiz.
+    """
+    result = await db.call_notes.update_one(
+        {"phone_number": phone_number},
+        {"$pull": {"notes": {"note_id": note_id}}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+    
+    return {"message": "Notiz gelöscht"}
+
+
+@api_router.post("/notes/{phone_number}/call-started")
+async def mark_call_started(phone_number: str):
+    """
+    Aktualisiert die last_call_time wenn ein Anruf beginnt.
+    """
+    call_notes = await db.call_notes.find_one({"phone_number": phone_number})
+    
+    if call_notes:
+        await db.call_notes.update_one(
+            {"phone_number": phone_number},
+            {"$set": {"last_call_time": datetime.utcnow()}}
+        )
+    else:
+        # Neuen Eintrag erstellen wenn noch keine Notizen existieren
+        new_call_notes = CallNotes(phone_number=phone_number)
+        await db.call_notes.insert_one(new_call_notes.dict())
+    
+    return {"message": "Anruf registriert"}
+
 
 # Include the router in the main app
 app.include_router(api_router)
