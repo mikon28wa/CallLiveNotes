@@ -1,8 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { Platform, Alert, PermissionsAndroid, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
-import CallDetectorManager from 'react-native-call-detection';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Only import on native platforms
+let CallDetectorManager: any = null;
+if (Platform.OS === 'android' || Platform.OS === 'ios') {
+  try {
+    CallDetectorManager = require('react-native-call-detection').default;
+  } catch (e) {
+    console.log('Call detection not available');
+  }
+}
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
