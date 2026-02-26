@@ -176,6 +176,30 @@ export default function NoteDetail() {
     });
   };
 
+  const handleExportPDF = async () => {
+    if (!callNotes) return;
+    
+    try {
+      setShowExportMenu(false);
+      await exportToPDF(callNotes);
+      Alert.alert('Erfolg', 'PDF wurde erstellt');
+    } catch (error) {
+      console.error('PDF Export Fehler:', error);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (!callNotes) return;
+    
+    try {
+      setShowExportMenu(false);
+      await exportSingleToCSV(callNotes);
+      Alert.alert('Erfolg', 'CSV wurde erstellt');
+    } catch (error) {
+      console.error('CSV Export Fehler:', error);
+    }
+  };
+
   const renderNoteItem = ({ item }: { item: Note }) => {
     const isEditing = editingNoteId === item.note_id;
 
