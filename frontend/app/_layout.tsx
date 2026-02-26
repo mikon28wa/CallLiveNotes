@@ -2,61 +2,37 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Platform, View, ActivityIndicator } from 'react-native';
 
 export default function RootLayout() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    loadFonts();
+    async function load() {
+      try {
+        if (Platform.OS === 'web') {
+          // Web: Fehler/Timeouts einfach ignorieren
+          Font.loadAsync(Ionicons.font).catch(() => {
+            console.warn('Font loading failed on web, using fallback');
+          });
+        } else {
+          // Mobile: sauber warten
+          await Font.loadAsync(Ionicons.font);
+        }
+      } finally {
+        setReady(true);
+      }
+    }
+    load();
   }, []);
 
-  async function loadFonts() {
-    try {
-      // Lade Ionicons Font
-      if (Platform.OS === 'web') {
-        // Auf Web: Ignoriere Fehler, verwende Fallback
-        await Font.loadAsync({
-          ...Ionicons.font,
-        }).catch((error) => {
-          console.warn('Font loading failed on web, using fallback:', error);
-          // Nicht kritisch - Web kann mit Fallback-Icons arbeiten
-        });
-      } else {
-        // Auf Mobile: Warte auf Font-Loading
-        await Font.loadAsync({
-          ...Ionicons.font,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading fonts:', error);
-    } finally {
-      setFontsLoaded(true);
-    }
-  }
-
-  if (!fontsLoaded) {
+  if (!ready) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
         <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
   }
 
-  return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    />
-  );
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#121212',
-  },
-});
