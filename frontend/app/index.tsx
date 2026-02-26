@@ -346,10 +346,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
+  },
+  menuButton: {
+    padding: 4,
   },
   headerTitle: {
     fontSize: 28,
