@@ -146,7 +146,17 @@ export default function CallDetectionService({
     console.log('Call ended');
     
     try {
+      const currentCall = await AsyncStorage.getItem('currentCall');
       await AsyncStorage.removeItem('currentCall');
+      
+      // Wenn wir gerade in der Notiz-Ansicht sind, navigiere zurück
+      if (currentCall && lastPhoneNumberRef.current) {
+        // Kurze Verzögerung, damit Benutzer noch letzte Eingabe machen kann
+        setTimeout(() => {
+          router.push('/');
+          lastPhoneNumberRef.current = null;
+        }, 1000); // 1 Sekunde Verzögerung
+      }
       
       if (onCallDetected) {
         onCallDetected();
