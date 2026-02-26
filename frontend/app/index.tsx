@@ -71,6 +71,105 @@ export default function Index() {
     fetchPhoneNumbers();
   }, []);
 
+  const handleExportCSV = async () => {
+    try {
+      setShowMenu(false);
+      await exportToCSV(phoneNumbers);
+      Alert.alert('Erfolg', 'CSV wurde exportiert');
+    } catch (error) {
+      console.error('CSV Export Fehler:', error);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    try {
+      setShowMenu(false);
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/backup`);
+      const backupData = await response.json();
+      
+      await createBackup(backupData);
+      Alert.alert('Erfolg', 'Backup wurde erstellt und gespeichert');
+    } catch (error) {
+      console.error('Backup Fehler:', error);
+      Alert.alert('Fehler', 'Backup konnte nicht erstellt werden');
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    try {
+      setShowMenu(false);
+      
+      // Datei auswählen
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      // Bestätigung vom Benutzer
+      Alert.alert(
+        'Backup wiederherstellen',
+        'Möchtest du das Backup wiederherstellen? Du kannst wählen zwischen:\n\n- Zusammenführen: Fügt neue Notizen hinzu\n- Ersetzen: Löscht alle aktuellen Daten',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Zusammenführen',
+            onPress: () => restoreBackupFile(result.assets[0].uri, 'merge'),
+          },
+          {
+            text: 'Ersetzen',
+            style: 'destructive',
+            onPress: () => restoreBackupFile(result.assets[0].uri, 'replace'),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Restore Fehler:', error);
+      Alert.alert('Fehler', 'Fehler beim Auswählen der Datei');
+    }
+  };
+
+  const restoreBackupFile = async (fileUri: string, mode: string) => {
+    try {
+      // Datei lesen
+      const response = await fetch(fileUri);
+      const backupData = await response.json();
+
+      // An Backend senden
+      const restoreResponse = await fetch(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/restore`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...backupData,
+            mode,
+          }),
+        }
+      );
+
+      if (restoreResponse.ok) {
+        const result = await restoreResponse.json();
+        Alert.alert(
+          'Erfolg',
+          `Backup wiederhergestellt!\n${result.restored_notes} Notizen wiederhergestellt`
+        );
+        fetchPhoneNumbers();
+      } else {
+        const error = await restoreResponse.json();
+        Alert.alert('Fehler', error.detail || 'Backup konnte nicht wiederhergestellt werden');
+      }
+    } catch (error) {
+      console.error('Restore File Fehler:', error);
+      Alert.alert('Fehler', 'Backup konnte nicht wiederhergestellt werden');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
