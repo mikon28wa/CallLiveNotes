@@ -23,6 +23,8 @@ interface CallDetectionServiceProps {
 
 export default function CallDetectionService({
   onCallDetected,
+  onCallStarted,
+  onCallEnded,
 }: CallDetectionServiceProps) {
   const router = useRouter();
   const callDetectorRef = useRef<any>(null);
