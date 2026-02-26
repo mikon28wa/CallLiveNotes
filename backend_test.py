@@ -143,6 +143,105 @@ class AnrufnotizenAPITester:
         except Exception as e:
             self.print_test_result(f"DELETE /notes/{phone_number}/{note_id}", False, f"Exception: {e}")
             return False, None
+    
+    def test_create_backup(self):
+        """Test GET /backup - should return complete backup with all data"""
+        print("💾 Testing GET /backup")
+        try:
+            response = self.session.get(f"{self.base_url}/api/backup")
+            success = response.status_code == 200
+            data = response.json() if success else {}
+            
+            # Validate backup structure
+            if success:
+                required_fields = ["backup_date", "version", "total_entries", "data"]
+                has_all_fields = all(field in data for field in required_fields)
+                is_list = isinstance(data.get("data"), list)
+                success = success and has_all_fields and is_list
+                
+                if success:
+                    # Check if _id is converted to string
+                    for item in data.get("data", []):
+                        if "_id" in item and not isinstance(item["_id"], str):
+                            success = False
+                            break
+            
+            self.print_test_result("GET /backup", success)
+            if not success:
+                self.print_response_details(response)
+            return success, data
+        except Exception as e:
+            self.print_test_result("GET /backup", False, f"Exception: {e}")
+            return False, None
+    
+    def test_restore_merge(self, backup_data: dict):
+        """Test POST /restore with mode=merge"""
+        print("🔄 Testing POST /restore (merge mode)")
+        try:
+            # Prepare restore payload with merge mode
+            restore_payload = {
+                "data": backup_data.get("data", []),
+                "mode": "merge"
+            }
+            
+            response = self.session.post(f"{self.base_url}/api/restore", json=restore_payload)
+            success = response.status_code == 200
+            self.print_test_result("POST /restore (merge)", success)
+            if not success:
+                self.print_response_details(response)
+            return success, response.json() if success else None
+        except Exception as e:
+            self.print_test_result("POST /restore (merge)", False, f"Exception: {e}")
+            return False, None
+    
+    def test_restore_replace(self, backup_data: dict):
+        """Test POST /restore with mode=replace"""
+        print("🔄 Testing POST /restore (replace mode)")
+        try:
+            # Prepare restore payload with replace mode
+            restore_payload = {
+                "data": backup_data.get("data", []),
+                "mode": "replace"
+            }
+            
+            response = self.session.post(f"{self.base_url}/api/restore", json=restore_payload)
+            success = response.status_code == 200
+            self.print_test_result("POST /restore (replace)", success)
+            if not success:
+                self.print_response_details(response)
+            return success, response.json() if success else None
+        except Exception as e:
+            self.print_test_result("POST /restore (replace)", False, f"Exception: {e}")
+            return False, None
+    
+    def test_restore_error_handling(self):
+        """Test POST /restore error handling"""
+        print("⚠️ Testing POST /restore error handling")
+        
+        # Test 1: Invalid JSON format
+        try:
+            response = self.session.post(f"{self.base_url}/api/restore", json={})
+            success = response.status_code == 400
+            self.print_test_result("POST /restore (missing data field)", success)
+            if not success:
+                self.print_response_details(response)
+        except Exception as e:
+            self.print_test_result("POST /restore (missing data field)", False, f"Exception: {e}")
+            success = False
+        
+        # Test 2: Invalid data structure
+        try:
+            invalid_payload = {"data": "invalid_data_type", "mode": "merge"}
+            response = self.session.post(f"{self.base_url}/api/restore", json=invalid_payload)
+            success2 = response.status_code == 400
+            self.print_test_result("POST /restore (invalid data format)", success2)
+            if not success2:
+                self.print_response_details(response)
+        except Exception as e:
+            self.print_test_result("POST /restore (invalid data format)", False, f"Exception: {e}")
+            success2 = False
+        
+        return success and success2
 
 def main():
     # Use the backend URL from the environment
