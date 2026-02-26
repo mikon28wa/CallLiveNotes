@@ -37,6 +37,7 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [activeCall, setActiveCall] = useState<string | null>(null);
 
   const fetchPhoneNumbers = async () => {
     try {
