@@ -99,36 +99,125 @@ export default function Index() {
     try {
       setShowMenu(false);
       
-      // Datei auswählen
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
-        copyToCacheDirectory: true,
-      });
+      if (Platform.OS === 'web') {
+        // Web: File Input verwenden
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        
+        input.onchange = async (e: any) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          const reader = new FileReader();
+          reader.onload = async (event: any) => {
+            try {
+              const backupData = JSON.parse(event.target.result);
+              
+              // Bestätigung
+              const mode = window.confirm(
+                'Backup wiederherstellen?\n\n' +
+                'OK = Zusammenführen (fügt neue Notizen hinzu)\n' +
+                'Abbrechen = Abbrechen\n\n' +
+                'Für "Ersetzen" (löscht alle Daten) nutze bitte die Mobile App.'
+              );
+              
+              if (mode) {
+                await restoreBackupData(backupData, 'merge');
+              }
+            } catch (error) {
+              console.error('JSON Parse Error:', error);
+              window.alert('Fehler: Ungültige Backup-Datei');
+            }
+          };
+          reader.readAsText(file);
+        };
+        
+        input.click();
+      } else {
+        // Mobile: DocumentPicker verwenden
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'application/json',
+          copyToCacheDirectory: true,
+        });
 
-      if (result.canceled) {
-        return;
+        if (result.canceled) {
+          return;
+        }
+
+        // Bestätigung vom Benutzer
+        Alert.alert(
+          'Backup wiederherstellen',
+          'Möchtest du das Backup wiederherstellen? Du kannst wählen zwischen:\n\n- Zusammenführen: Fügt neue Notizen hinzu\n- Ersetzen: Löscht alle aktuellen Daten',
+          [
+            { text: 'Abbrechen', style: 'cancel' },
+            {
+              text: 'Zusammenführen',
+              onPress: () => restoreBackupFile(result.assets[0].uri, 'merge'),
+            },
+            {
+              text: 'Ersetzen',
+              style: 'destructive',
+              onPress: () => restoreBackupFile(result.assets[0].uri, 'replace'),
+            },
+          ]
+        );
       }
-
-      // Bestätigung vom Benutzer
-      Alert.alert(
-        'Backup wiederherstellen',
-        'Möchtest du das Backup wiederherstellen? Du kannst wählen zwischen:\n\n- Zusammenführen: Fügt neue Notizen hinzu\n- Ersetzen: Löscht alle aktuellen Daten',
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Zusammenführen',
-            onPress: () => restoreBackupFile(result.assets[0].uri, 'merge'),
-          },
-          {
-            text: 'Ersetzen',
-            style: 'destructive',
-            onPress: () => restoreBackupFile(result.assets[0].uri, 'replace'),
-          },
-        ]
-      );
     } catch (error) {
       console.error('Restore Fehler:', error);
-      Alert.alert('Fehler', 'Fehler beim Auswählen der Datei');
+      if (Platform.OS === 'web') {
+        window.alert('Fehler beim Auswählen der Datei');
+      } else {
+        Alert.alert('Fehler', 'Fehler beim Auswählen der Datei');
+      }
+    }
+  };
+
+  const restoreBackupData = async (backupData: any, mode: string) => {
+    try {
+      const restoreResponse = await fetch(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/restore`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...backupData,
+            mode,
+          }),
+        }
+      );
+
+      if (restoreResponse.ok) {
+        const result = await restoreResponse.json();
+        const message = `Backup wiederhergestellt!\n${result.restored_notes} Notizen wiederhergestellt`;
+        
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('Erfolg', message);
+        }
+        fetchPhoneNumbers();
+      } else {
+        const error = await restoreResponse.json();
+        const errorMsg = error.detail || 'Backup konnte nicht wiederhergestellt werden';
+        
+        if (Platform.OS === 'web') {
+          window.alert('Fehler: ' + errorMsg);
+        } else {
+          Alert.alert('Fehler', errorMsg);
+        }
+      }
+    } catch (error) {
+      console.error('Restore Data Fehler:', error);
+      const errorMsg = 'Backup konnte nicht wiederhergestellt werden';
+      
+      if (Platform.OS === 'web') {
+        window.alert('Fehler: ' + errorMsg);
+      } else {
+        Alert.alert('Fehler', errorMsg);
+      }
     }
   };
 
