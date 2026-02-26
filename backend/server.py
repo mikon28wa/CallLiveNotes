@@ -212,7 +212,8 @@ async def create_backup():
     """
     Erstellt ein vollständiges Backup aller Anrufnotizen.
     """
-    cursor = db.call_notes.find({})
+    # Optimiert: Limit hinzugefügt
+    cursor = db.call_notes.find({}).limit(10000)
     all_notes = await cursor.to_list(10000)
     
     # Konvertiere ObjectId zu String für JSON-Serialisierung
