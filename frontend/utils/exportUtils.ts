@@ -176,18 +176,31 @@ export const createBackup = async (backupData: any) => {
     
     if (Platform.OS === 'web') {
       // Web: Download als Datei
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      return fileName;
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        return fileName;
+      } else {
+        throw new Error('Web environment not available');
+      }
     } else {
       // Mobile: FileSystem + Sharing
+      if (!FileSystem || !Sharing) {
+        throw new Error('FileSystem or Sharing not available');
+      }
+      
       const fileUri = FileSystem.documentDirectory + fileName;
       
       await FileSystem.writeAsStringAsync(
@@ -207,7 +220,8 @@ export const createBackup = async (backupData: any) => {
     }
   } catch (error) {
     console.error('Fehler beim Backup:', error);
-    Alert.alert('Fehler', 'Backup konnte nicht erstellt werden');
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    Alert.alert('Fehler', `Backup konnte nicht erstellt werden: ${errorMessage}`);
     throw error;
   }
 };
