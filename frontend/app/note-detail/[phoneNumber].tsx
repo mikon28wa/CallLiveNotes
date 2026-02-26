@@ -46,6 +46,37 @@ export default function NoteDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Auto-save für ungespeicherten Text
+  useEffect(() => {
+    // Beim Verlassen der Seite: Prüfe ob noch ungespeicherter Text vorhanden ist
+    return () => {
+      if (newNoteText.trim() && !isSubmitting) {
+        // Automatisch speichern wenn Text vorhanden ist
+        autoSaveNote();
+      }
+    };
+  }, [newNoteText]);
+
+  const autoSaveNote = async () => {
+    if (!newNoteText.trim()) return;
+
+    try {
+      await fetch(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/notes/${encodeURIComponent(decodedPhoneNumber)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: newNoteText }),
+        }
+      );
+      console.log('Notiz automatisch gespeichert');
+    } catch (error) {
+      console.error('Auto-Save Fehler:', error);
+    }
+  };
+
   const fetchNotes = async () => {
     try {
       const response = await fetch(
