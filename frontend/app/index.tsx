@@ -319,7 +319,19 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <CallDetectionService onCallDetected={fetchPhoneNumbers} />
+      <CallDetectionService 
+        onCallDetected={fetchPhoneNumbers} 
+        onCallStarted={(phoneNumber) => setActiveCall(phoneNumber)}
+        onCallEnded={() => setActiveCall(null)}
+      />
+      
+      {/* Floating Button während eines Anrufs */}
+      {activeCall && (
+        <FloatingCallButton 
+          phoneNumber={activeCall}
+          onPress={() => setActiveCall(null)}
+        />
+      )}
       
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Anrufnotizen</Text>
