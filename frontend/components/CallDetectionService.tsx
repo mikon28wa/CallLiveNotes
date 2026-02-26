@@ -156,6 +156,11 @@ export default function CallDetectionService({
       const currentCall = await AsyncStorage.getItem('currentCall');
       await AsyncStorage.removeItem('currentCall');
       
+      // Callback für Parent-Component
+      if (onCallEnded) {
+        onCallEnded();
+      }
+      
       // Wenn wir gerade in der Notiz-Ansicht sind, navigiere zurück
       if (currentCall && lastPhoneNumberRef.current) {
         // Kurze Verzögerung, damit Benutzer noch letzte Eingabe machen kann
