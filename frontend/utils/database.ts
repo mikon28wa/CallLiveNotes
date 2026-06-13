@@ -92,6 +92,35 @@ export interface PhoneNumberSummary {
   note_count: number;
 }
 
+// Interfaces für Backup-Daten
+export interface BackupNote {
+  id: number;
+  note_id: string;
+  text: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackupCallNote {
+  id: number;
+  phone_number: string;
+  last_call_time: string;
+  created_at: string;
+  notes: BackupNote[];
+}
+
+export interface BackupData {
+  version: string;
+  created_at: string;
+  call_notes: BackupCallNote[];
+}
+
+// Interface für Validierungsergebnis
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
 // Hilfsfunktion für SQL-Transaktionen
 const executeSql = (sql: string, params: any[] = []): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -462,7 +491,7 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
 };
 
 // Backup erstellen
-export const createBackup = (): Promise<any> => {
+export const createBackup = (): Promise<BackupData> => {
   return new Promise((resolve, reject) => {
     db.transaction(tx => {
       // Alle call_notes abrufen
@@ -470,13 +499,13 @@ export const createBackup = (): Promise<any> => {
         `SELECT id, phone_number, last_call_time, created_at FROM call_notes`,
         [],
         (_, callNotesResult) => {
-          const callNotes: any[] = [];
-          const callNoteMap: { [key: number]: any } = {};
+          const callNotes: BackupCallNote[] = [];
+          const callNoteMap: { [key: number]: BackupCallNote } = {};
 
           // call_notes verarbeiten
           for (let i = 0; i < callNotesResult.rows.length; i++) {
             const row = callNotesResult.rows.item(i);
-            const callNote = {
+            const callNote: BackupCallNote = {
               id: row.id,
               phone_number: row.phone_number,
               last_call_time: row.last_call_time,
@@ -494,7 +523,7 @@ export const createBackup = (): Promise<any> => {
             (_, notesResult) => {
               for (let i = 0; i < notesResult.rows.length; i++) {
                 const row = notesResult.rows.item(i);
-                const note = {
+                const note: BackupNote = {
                   id: row.id,
                   note_id: row.note_id,
                   text: row.text,
@@ -506,7 +535,7 @@ export const createBackup = (): Promise<any> => {
                 }
               }
 
-              const backupData = {
+              const backupData: BackupData = {
                 version: '1.0.0',
                 created_at: new Date().toISOString(),
                 call_notes: callNotes
@@ -533,8 +562,18 @@ export const createBackup = (): Promise<any> => {
 // Backup wiederherstellen
 export const restoreBackup = (backupData: any, mode: 'merge' | 'replace'): Promise<{ restored_notes: number; skipped_entries: number }> => {
   return new Promise((resolve, reject) => {
-    if (!backupData || !backupData.call_notes) {
-      reject(new Error('Ungültiges Backup-Format'));
+    // Strukturvalidierung durchführen
+    const validation = validateBackupData(backupData);
+    if (!validation.valid) {
+      const errorMessage = `Ungültiges Backup-Format: ${validation.errors.join('; ')}`;
+      console.error('Backup-Validierungsfehler:', validation.errors);
+      reject(new Error(errorMessage));
+      return;
+    }
+
+    // Typprüfung für mode
+    if (mode !== 'merge' && mode !== 'replace') {
+      reject(new Error(`Ungültiger Modus: ${mode}. Erlaubt sind 'merge' oder 'replace'.`));
       return;
     }
 
@@ -657,4 +696,147 @@ export const validatePhoneNumber = (phoneNumber: string): boolean => {
   }
   
   return regex.test(cleaned);
+};
+
+// Validiert, ob ein Wert vom Typ string ist
+export const isString = (value: any): boolean => {
+  return typeof value === 'string';
+};
+
+// Validiert, ob ein Wert vom Typ number ist
+export const isNumber = (value: any): boolean => {
+  return typeof value === 'number' && !isNaN(value);
+};
+
+// Validiert, ob ein Wert vom Typ boolean ist
+export const isBoolean = (value: any): boolean => {
+  return typeof value === 'boolean';
+};
+
+// Validiert, ob ein Wert ein Array ist
+export const isArray = (value: any): boolean => {
+  return Array.isArray(value);
+};
+
+// Validiert, ob ein Wert ein Objekt ist
+export const isObject = (value: any): boolean => {
+  return value !== null && typeof value === 'object' && !isArray(value);
+};
+
+// Validiert die Struktur einer einzelnen Notiz
+const validateNote = (note: any, index: number): string[] => {
+  const errors: string[] = [];
+  
+  if (!isObject(note)) {
+    errors.push(`Notiz an Position ${index} ist kein Objekt`);
+    return errors;
+  }
+  
+  if (!isNumber(note.id)) {
+    errors.push(`Notiz[${index}].id muss eine Zahl sein, ist aber ${typeof note.id}`);
+  }
+  
+  if (!isString(note.note_id)) {
+    errors.push(`Notiz[${index}].note_id muss ein String sein, ist aber ${typeof note.note_id}`);
+  }
+  
+  if (!isString(note.text)) {
+    errors.push(`Notiz[${index}].text muss ein String sein, ist aber ${typeof note.text}`);
+  }
+  
+  if (!isString(note.created_at)) {
+    errors.push(`Notiz[${index}].created_at muss ein String sein, ist aber ${typeof note.created_at}`);
+  }
+  
+  if (!isString(note.updated_at)) {
+    errors.push(`Notiz[${index}].updated_at muss ein String sein, ist aber ${typeof note.updated_at}`);
+  }
+  
+  return errors;
+};
+
+// Validiert die Struktur eines Anrufnotiz-Eintrags
+const validateCallNote = (callNote: any, index: number): string[] => {
+  const errors: string[] = [];
+  
+  if (!isObject(callNote)) {
+    errors.push(`Anrufnotiz an Position ${index} ist kein Objekt`);
+    return errors;
+  }
+  
+  if (!isNumber(callNote.id)) {
+    errors.push(`call_notes[${index}].id muss eine Zahl sein, ist aber ${typeof callNote.id}`);
+  }
+  
+  if (!isString(callNote.phone_number)) {
+    errors.push(`call_notes[${index}].phone_number muss ein String sein, ist aber ${typeof callNote.phone_number}`);
+  } else if (!validatePhoneNumber(callNote.phone_number)) {
+    errors.push(`call_notes[${index}].phone_number hat ein ungültiges Format: ${callNote.phone_number}`);
+  }
+  
+  if (!isString(callNote.last_call_time)) {
+    errors.push(`call_notes[${index}].last_call_time muss ein String sein, ist aber ${typeof callNote.last_call_time}`);
+  }
+  
+  if (!isString(callNote.created_at)) {
+    errors.push(`call_notes[${index}].created_at muss ein String sein, ist aber ${typeof callNote.created_at}`);
+  }
+  
+  if (!isArray(callNote.notes)) {
+    errors.push(`call_notes[${index}].notes muss ein Array sein, ist aber ${typeof callNote.notes}`);
+    return errors;
+  }
+  
+  // Validiert jede Notiz im Array
+  for (let i = 0; i < callNote.notes.length; i++) {
+    const noteErrors = validateNote(callNote.notes[i], i);
+    errors.push(...noteErrors.map(err => `call_notes[${index}].${err}`));
+  }
+  
+  return errors;
+};
+
+// Validiert die gesamte Backup-Struktur und Typen
+export const validateBackupData = (backupData: any): ValidationResult => {
+  const errors: string[] = [];
+  
+  if (!isObject(backupData)) {
+    errors.push('Backup-Daten müssen ein Objekt sein');
+    return { valid: false, errors };
+  }
+  
+  // Prüfe version Feld
+  if (!isString(backupData.version)) {
+    errors.push(`version muss ein String sein, ist aber ${typeof backupData.version}`);
+  } else if (!/^\d+\.\d+\.\d+$/.test(backupData.version)) {
+    errors.push(`version muss im Format "X.Y.Z" sein, ist aber: ${backupData.version}`);
+  }
+  
+  // Prüfe created_at Feld
+  if (!isString(backupData.created_at)) {
+    errors.push(`created_at muss ein String sein, ist aber ${typeof backupData.created_at}`);
+  } else {
+    // Prüfe, ob es ein gültiges ISO-Datum ist
+    const date = new Date(backupData.created_at);
+    if (isNaN(date.getTime())) {
+      errors.push(`created_at muss ein gültiges ISO-Datum sein, ist aber: ${backupData.created_at}`);
+    }
+  }
+  
+  // Prüfe call_notes Feld
+  if (!isArray(backupData.call_notes)) {
+    errors.push(`call_notes muss ein Array sein, ist aber ${typeof backupData.call_notes}`);
+    return { valid: false, errors };
+  }
+  
+  // Validiert jede Anrufnotiz
+  for (let i = 0; i < backupData.call_notes.length; i++) {
+    const callNoteErrors = validateCallNote(backupData.call_notes[i], i);
+    errors.push(...callNoteErrors);
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 };
