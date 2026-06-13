@@ -1,117 +1,197 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Platform,
-  Dimensions,
-} from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { createNote, validatePhoneNumber } from '../utils/database';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width, height } = Dimensions.get('window');
+const FloatingCallButton: React.FC = () => {
+  const navigation = useNavigation();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-interface FloatingCallButtonProps {
-  phoneNumber: string;
-  onPress?: () => void;
-}
-
-export default function FloatingCallButton({
-  phoneNumber,
-  onPress,
-}: FloatingCallButtonProps) {
-  const router = useRouter();
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [pulseAnim] = useState(new Animated.Value(1));
-
-  useEffect(() => {
-    // Fade in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-
-    // Pulse animation (aufmerksamkeitserregend)
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const handlePress = () => {
-    if (onPress) {
-      onPress();
+  const createManualNote = async () => {
+    if (!phoneNumber.trim() || !noteText.trim()) {
+      Alert.alert('Fehler', 'Bitte geben Sie Telefonnummer und Notiztext ein');
+      return;
     }
-    // Navigiere zu Notizen
-    router.push(`/note-detail/${encodeURIComponent(phoneNumber)}`);
+    
+    // Validierung der Telefonnummer
+    if (!validatePhoneNumber(phoneNumber) && !/^[\d\s\-\+\\(\)]{8,20}$/.test(phoneNumber)) {
+      Alert.alert('Ungültige Telefonnummer', 'Bitte geben Sie eine gültige Telefonnummer ein');
+      return;
+    }
+    
+    try {
+      setIsCreating(true);
+      
+      // Bereinige die Telefonnummer
+      let cleanedPhoneNumber = phoneNumber.replace(/[^\d+]/g, '');
+      
+      // Falls keine Ländervorwahl, füge +49 hinzu (Deutschland)
+      if (!cleanedPhoneNumber.startsWith('+') && cleanedPhoneNumber.length >= 10) {
+        cleanedPhoneNumber = `+49${cleanedPhoneNumber.substring(1)}`;
+      }
+      
+      // Erstelle die Notiz
+      await createNote(cleanedPhoneNumber, noteText);
+      
+      // Schließe Modal und setze Felder zurück
+      setModalVisible(false);
+      setPhoneNumber('');
+      setNoteText('');
+      
+      // Navigiere zur Detailansicht
+      // @ts-ignore - Navigation wird durch Expo Router gehandhabt
+      navigation.navigate('note-detail', { phoneNumber: cleanedPhoneNumber });
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Notiz:', error);
+      Alert.alert('Fehler', 'Notiz konnte nicht erstellt werden');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: pulseAnim }],
-        },
-      ]}
-    >
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handlePress}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="create" size={28} color="#fff" />
-        <Text style={styles.label}>Notiz</Text>
+    <>
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Ionicons name="add" size={28} color="white" />
       </TouchableOpacity>
-    </Animated.View>
+      
+      {modalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Neue Notiz erstellen</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Telefonnummer"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              editable={!isCreating}
+            />
+            
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Notiztext"
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              editable={!isCreating}
+            />
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => setModalVisible(false)} 
+                disabled={isCreating}
+              >
+                <Text style={styles.cancelButtonText}>Abbrechen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.createButton} 
+                onPress={createManualNote} 
+                disabled={isCreating || !phoneNumber.trim() || !noteText.trim()}
+              >
+                {isCreating ? (
+                  <Text style={styles.createButtonText}>Erstellen...</Text>
+                ) : (
+                  <Text style={styles.createButtonText}>Notiz erstellen</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+    </>
   );
-}
+};
 
+// Styles
 const styles = StyleSheet.create({
-  container: {
+  fab: {
     position: 'absolute',
     right: 20,
-    bottom: Platform.OS === 'ios' ? 100 : 80,
-    zIndex: 9999,
-    elevation: 10, // Android shadow
-  },
-  button: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#4CAF50',
+    bottom: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-    borderWidth: 3,
-    borderColor: '#fff',
+    shadowRadius: 4,
+    elevation: 5,
   },
-  label: {
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 20,
+  },
+  cancelButton: {
+    padding: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  createButton: {
+    padding: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  createButtonText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
+
+export default FloatingCallButton;

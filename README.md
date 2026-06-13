@@ -1,292 +1,166 @@
 # CallLiveNotes
 
-Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonanrufen. Optimiert für Android mit eingeschränkter Funktionalität auf iOS.
-
----
-
-## Inhaltsverzeichnis
-1. [Funktionen](#funktionen)
-2. [Neue Erweiterungen](#neue-erweiterungen)
-3. [Technologie-Stack](#technologie-stack)
-4. [Voraussetzungen](#voraussetzungen)
-5. [Installation](#installation)
-6. [Verwendung](#verwendung)
-7. [API-Dokumentation](#api-dokumentation)
-8. [Datenbank-Schema](#datenbank-schema)
-9. [Backup & Export](#backup--export)
-10. [Fehlerbehebung](#fehlerbehebung)
-11. [Projektstruktur](#projektstruktur)
-12. [Einschränkungen](#einschränkungen)
-13. [Datenschutz](#datenschutz)
-14. [FAQ](#faq)
-15. [Dokumentation & Ressourcen](#dokumentation--ressourcen)
+Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonanrufen. **Vollständig offline mit lokaler Speicherung auf dem Gerät.** Optimiert für Android mit eingeschränkter Funktionalität auf iOS.
 
 ---
 
 ## Funktionen
 
-### Kernfunktionen
-- Automatische Notizerstellung: Erkennung eingehender/ausgehender Anrufe mit sofortiger Notizfunktion (Android)
-- Zeitgestempelte Notizen: Jede Notiz wird mit Datum und Uhrzeit gespeichert
-- Notizhistorie: Vollständige Historie aller Notizen pro Telefonnummer
-- Echtzeit-Bearbeitung: Notizen können jederzeit bearbeitet oder gelöscht werden
-
-### Such- und Sortierfunktionen
-- Schnelle Suche nach Telefonnummern
-- Automatische Sortierung nach letztem Anruf (neueste zuerst)
-
-### Export-Optionen
-- PDF-Export: Formatierte PDFs pro Telefonnummer
-- CSV-Export: Einzelne oder alle Notizen als CSV
-- Backup: Vollständige Datensicherung als JSON
-
-### Plattformspezifische Hinweise
-- Android: Volle Funktionalität inkl. Anruferkennung
-- iOS: Manuelle Notizerstellung (automatische Erkennung nicht möglich)
-
----
-
-## Neue Erweiterungen
-
-### Notizen teilen
-- Exportieren Sie Notizen als PDF oder CSV
-- Teilen Sie Dateien per E-Mail, Messenger oder Cloud-Dienst (Google Drive, Dropbox)
-- Direkter Upload in Cloud-Apps über das System-Share-Menü
-- Zeitstempel werden beim Export mit berücksichtigt
-
-### Technische Details
-- Selbstgehostete Datenbank: MongoDB 5.0+ auf eigenem Server möglich
-- Backend: FastAPI mit Python 3.8+
-- Frontend: React Native mit Expo
-- Skalierbarkeit: Load Balancing für Backend, geclusterte MongoDB für hohe Lasten
-- API-Dokumentation für Entwickler verfügbar
-
-### Fehlerbehebung
-- Detaillierte Anleitungen für häufige Probleme
-- Log-Analyse für Backend und Frontend
-- Berechtigungsmanagement für Android
-- App-Reset auf Werkseinstellungen
+- **Vollständig offline**: Alle Daten werden lokal auf dem Gerät gespeichert (SQLite)
+- **Automatische Notizerstellung**: Erkennung eingehender/ausgehender Anrufe (Android)
+- **Zeitgestempelte Notizen**: Jede Notiz mit Datum und Uhrzeit
+- **Notizhistorie**: Vollständige Historie pro Telefonnummer
+- **Export-Optionen**: CSV, Text, JSON Backup
+- **Plattformunterstützung**: Android (voll), iOS (manuell)
 
 ---
 
 ## Technologie-Stack
 
-| Bereich       | Technologie          |
-|---------------|----------------------|
-| Frontend      | React Native + Expo Router |
-| Backend       | FastAPI (Python)     |
-| Datenbank     | MongoDB              |
-| Anruferkennung| react-native-call-detection |
-
----
-
-## Voraussetzungen
-
-### Android
-- Mindestsystem: Android 6.0 (API Level 23)
-- Benötigte Berechtigungen:
-  - READ_PHONE_STATE (Anrufstatus)
-  - READ_CALL_LOG (Telefonnummernauslesung)
-
-### iOS
-- Einschränkung: Automatische Anruferkennung nicht verfügbar (Apple-Richtlinien)
-- Funktionsumfang: Manuelle Notizverwaltung möglich
+| Bereich | Technologie |
+|---------|-------------|
+| Frontend | React Native + Expo Router |
+| Datenbank | SQLite (expo-sqlite) |
+| Anruferkennung | react-native-call-detection (Android) |
+| Dateisystem | expo-file-system |
+| Teilen | expo-sharing |
 
 ---
 
 ## Installation
 
-### Backend starten
 ```bash
-cd /app/backend
-pip install -r requirements.txt
-python server.py
-```
-Das Backend läuft auf http://0.0.0.0:8001
-
-### Frontend starten
-```bash
-cd /app/frontend
+git clone https://github.com/mikon28wa/CallLiveNotes.git
+cd CallLiveNotes/frontend
 yarn install
 yarn start
 ```
-Das Frontend läuft auf Port 3000 und ist über Expo Go erreichbar.
 
 ---
 
 ## Verwendung
 
-### 1. Hauptbildschirm
-- Zeigt alle Telefonnummern mit Notizen an
-- Jeder Eintrag zeigt: Telefonnummer, Letzte Notiz (Vorschau), Zeitpunkt des letzten Anrufs, Anzahl der Notizen
-- Suchleiste zum Filtern nach Telefonnummer
-- Pull-to-Refresh zum Aktualisieren der Liste
-
-### 2. Detail-/Notizansicht
-- Wird automatisch beim Anruf geöffnet (Android)
-- Zeigt alle Notizen für eine Telefonnummer
-- Jede Notiz zeigt: Erstellungsdatum, Notiztext, Bearbeitungszeitpunkt
-- Funktionen: Neue Notiz hinzufügen, Notiz bearbeiten, Notiz löschen
-
-### 3. Notizen teilen
-- Tippen Sie auf das Teilen-Symbol in der Detailansicht
-- Wählen Sie PDF oder CSV aus
-- Teilen Sie die Datei per E-Mail oder Cloud-Dienst
-
-### 4. Export-Funktionen
-- Einzelne Telefonnummer: Teilen-Symbol → PDF/CSV
-- Alle Daten: Hauptmenü (⋮) → Alle als CSV exportieren
-
-### 5. Backup & Sync
-- Backup erstellen: Hauptmenü → Backup erstellen (JSON-Datei)
-- Backup wiederherstellen: Hauptmenü → Backup wiederherstellen
-- Modi: Zusammenführen (keine Duplikate) oder Ersetzen (alle Daten löschen)
-
----
-
-## API-Dokumentation
-
-### Basis-URL
-http://0.0.0.0:8001/api
-
-### Endpunkte
-
-| Methode | Endpunkt                          | Beschreibung                          |
-|---------|-----------------------------------|---------------------------------------|
-| GET     | /notes                           | Liste aller Telefonnummern           |
-| GET     | /notes/{phone_number}           | Notizen einer Nummer                  |
-| POST    | /notes/{phone_number}           | Neue Notiz erstellen                 |
-| PUT     | /notes/{phone_number}/{note_id}| Notiz aktualisieren                   |
-| DELETE  | /notes/{phone_number}/{note_id}| Notiz löschen                         |
-| POST    | /notes/{phone_number}/call-started | Anrufstart markieren              |
-| GET     | /backup                          | Backup erstellen                      |
-| POST    | /restore                         | Backup wiederherstellen               |
-
----
-
-## Datenbank-Schema
-
-### Collection: call_notes
-
-```json
-{
-  "_id": "ObjectId",
-  "phone_number": "string",
-  "notes": [
-    {
-      "note_id": "uuid",
-      "text": "string",
-      "created_at": "datetime",
-      "updated_at": "datetime"
-    }
-  ],
-  "last_call_time": "datetime"
-}
-```
-
----
-
-## Backup & Export
-
-### Export-Formate
-| Format | Inhalt                          | Verwendung                     |
-|--------|---------------------------------|-------------------------------|
-| PDF    | Formatierte Notizen einer Nummer | Drucken/Teilen                |
-| CSV    | Tabellarische Notizen           | Excel/Tabellenkalkulation     |
-| JSON   | Vollständiges Backup            | Datensicherung/Wiederherstellung |
-
-### Backup-Empfehlungen
-- Häufigkeit: Wöchentlich/Monatlich
-- Speicherort: Cloud (Google Drive, Dropbox)
-- Best Practice: Mehrere Backup-Versionen behalten
-
----
-
-## Fehlerbehebung
-
-### Häufige Probleme
-
-**Backup wird nicht wiederhergestellt:**
-1. Prüfen Sie die JSON-Datei auf Unversehrtheit
-2. Wählen Sie den richtigen Modus (Zusammenführen/Ersetzen)
-3. Starten Sie die App neu
-
-**Notizen werden nicht angezeigt:**
-- Prüfen Sie Internetverbindung
-- Starten Sie das Backend (python server.py)
-- Pull-to-Refresh in der App
-- Starten Sie MongoDB neu
-
-**App stürzt ab:**
-- Prüfen Sie Logs: supervisorctl tail expo stderr / backend stderr
-- Aktualisieren Sie Abhängigkeiten: pip install -r requirements.txt / yarn install
-- Starten Sie das Gerät neu
-
-**Anruferkennung funktioniert nicht:**
-- Prüfen Sie Berechtigungen: READ_PHONE_STATE, READ_CALL_LOG
-- App neu starten
-- Gerätekompatibilität: Android 6.0+
+1. **Hauptbildschirm**: Zeigt alle Telefonnummern mit Notizen an
+2. **Detailansicht**: Alle Notizen für eine Telefonnummer
+3. **Manuelle Notiz**: Tippen Sie auf den + Button
+4. **Export**: CSV, Text oder JSON Backup
+5. **Backup**: Vollständige Datensicherung
 
 ---
 
 ## Projektstruktur
 
 ```
-/app
-├── backend/
-│   ├── server.py           # FastAPI Server mit allen Endpunkten
-│   └── requirements.txt    # Python Dependencies
-├── frontend/
-│   ├── app/
-│   │   ├── index.tsx                      # Hauptbildschirm (Liste)
-│   │   └── note-detail/[phoneNumber].tsx  # Detail-/Notizansicht
-│   ├── components/
-│   │   └── CallDetectionService.tsx       # Anruferkennung
-│   ├── app.json            # Expo Konfiguration
-│   └── package.json        # JavaScript Dependencies
-└── README.md               # Projekt-Dokumentation
-└── FAQ.md                  # Häufig gestellte Fragen
+frontend/
+├── app/
+│   ├── index.tsx                      # Hauptbildschirm (Liste aller Telefonnummern)
+│   └── note-detail/
+│       └── [phoneNumber].tsx          # Detailansicht für eine Telefonnummer
+├── components/
+│   ├── CallDetectionService.tsx       # Anruferkennung (nur Android)
+│   └── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
+├── utils/
+│   └── database.ts                    # SQLite-Datenbank-Implementierung
+├── assets/                            # App-Icons und Bilder
+├── app.json                           # Expo Konfiguration
+└── package.json                       # JavaScript Abhängigkeiten
 ```
 
 ---
 
-## Einschränkungen
+## Berechtigungen
 
-1. iOS: Automatische Anruferkennung nicht verfügbar
-2. Web-Version: Call Detection funktioniert nur auf nativen Plattformen
-3. Hintergrund-Erkennung: App muss geöffnet sein
+### Android
+Die App benötigt folgende Berechtigungen:
+- `READ_PHONE_STATE` - Zum Erkennen von Anrufen
+- `READ_CALL_LOG` - Zum Lesen des Anrufverlaufs
+- `PROCESS_OUTGOING_CALLS` - Zum Erkennen ausgehender Anrufe
 
----
-
-## Datenschutz
-
-- Kein Zugriff auf Telefonbuch
-- Nur Speicherung von Telefonnummern mit Notizen
-- Keine Aufzeichnung von Anrufdauer oder -inhalt
-- Lokale Speicherung in MongoDB
+### iOS
+Auf iOS ist die automatische Anruferkennung aufgrund von Apple-Einschränkungen nicht möglich. Nutzen Sie bitte die manuelle Notizerstellung über den + Button.
 
 ---
 
-## FAQ
+## Datenbank-Schema
 
-Eine ausführliche FAQ mit 43 Fragen finden Sie in der [FAQ.md](FAQ.md)-Datei. Diese enthält:
-- Allgemeine Fragen
-- Installation & Einrichtung
-- Nutzung & Funktionen (inkl. Notizen teilen)
-- Technische Details (Datenbank, API, Anpassungen)
-- Datenschutz & Sicherheit
-- Fehlerbehebung
+### Tabellen
+
+#### call_notes
+- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
+- `phone_number` (TEXT UNIQUE) - Telefonnummer
+- `last_call_time` (TEXT) - Zeitstempel des letzten Anrufs
+- `created_at` (TEXT) - Erstellungsdatum
+
+#### notes
+- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
+- `call_note_id` (INTEGER) - Fremdschlüssel zu call_notes
+- `note_id` (TEXT UNIQUE) - Eindeutige Notiz-ID
+- `text` (TEXT) - Notiztext
+- `created_at` (TEXT) - Erstellungsdatum
+- `updated_at` (TEXT) - Letztes Update
 
 ---
 
-## Dokumentation & Ressourcen
+## Backup und Wiederherstellung
 
-- [Google Sites Projektseite](https://sites.google.com/blubac.org/calllivenotes/start) – Detaillierte Anleitungen und zusätzliche Informationen
-- [FAQ.md](FAQ.md) – Häufig gestellte Fragen
-- [API-Dokumentation](#api-dokumentation) – Endpunkte und Beispiele
+### Backup erstellen
+1. Tippen Sie auf "Backup" im Hauptbildschirm
+2. Wählen Sie einen Speicherort
+3. Die Backup-Datei wird als JSON gespeichert
+
+### Backup wiederherstellen
+1. Tippen Sie auf "Backup wiederherstellen" im Hauptbildschirm
+2. Wählen Sie die Backup-Datei aus
+3. Wählen Sie zwischen "Zusammenführen" (fügt neue Notizen hinzu) oder "Ersetzen" (löscht alle aktuellen Daten)
+
+---
+
+## Validierung
+
+### Telefonnummern
+Telefonnummern werden mit folgendem Regex validiert:
+- International: `^\+\d{8,15}$`
+- National (Deutschland): `^\d{10,15}$`
+
+---
+
+## Hinweise für Entwickler
+
+1. **Berechtigungen**: Auf Android sind `READ_PHONE_STATE` und `READ_CALL_LOG` erforderlich
+2. **iOS-Einschränkungen**: Automatische Anruferkennung ist auf iOS nicht möglich
+3. **Datenbank**: SQLite ist für mobile Geräte optimiert und erfordert keine Konfiguration
+4. **Backup**: JSON-Format für einfache Migration und Wiederherstellung
+5. **Validierung**: Telefonnummern werden mit Regex validiert
+
+---
+
+## Migration von der alten Version
+
+Falls Sie die alte Version mit MongoDB-Backend verwendet haben:
+1. Exportieren Sie Ihre Daten aus der alten Version
+2. Installieren Sie die neue Offline-Version
+3. Importieren Sie die Daten über die Backup-Funktion
+
+---
+
+## Vergleich: Alte vs. Neue Version
+
+| Komponente | Alte Version | Neue Version |
+|------------|-------------|---------------|
+| **Datenbank** | MongoDB (Server) | SQLite (lokal) |
+| **Backend** | FastAPI (Python) | Nicht benötigt |
+| **Frontend** | React Native + API-Aufrufe | React Native + direkte DB-Zugriffe |
+| **Speicherort** | Server | Lokales Gerät |
+| **Offline-Fähigkeit** | Nein | Ja |
+| **Anruferkennung** | Serverabhängig | Direkt auf dem Gerät |
+| **Installation** | Komplex (Server + Client) | Einfach (nur App) |
 
 ---
 
 ## Lizenz
 
-Dieses Projekt wurde als MVP erstellt und kann frei angepasst werden.
+Dieses Projekt ist für den persönlichen Gebrauch bestimmt.
+
+---
+
+**Viel Spaß mit CallLiveNotes!** 📞📝

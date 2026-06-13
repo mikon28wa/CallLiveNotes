@@ -1,183 +1,78 @@
-import { useEffect, useRef, useState } from 'react';
-import { Platform, Alert, PermissionsAndroid, AppState } from 'react-native';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Only import on native platforms
-let CallDetectorManager: any = null;
-if (Platform.OS === 'android' || Platform.OS === 'ios') {
-  try {
-    CallDetectorManager = require('react-native-call-detection').default;
-  } catch (e) {
-    console.log('Call detection not available');
-  }
-}
-
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import React, { useEffect, useState, useCallback } from 'react';
+import { Platform, Alert, AppState, AppStateStatus } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { markCallStarted } from '../utils/database';
 
 interface CallDetectionServiceProps {
-  onCallDetected?: () => void;
-  onCallStarted?: (phoneNumber: string) => void;
-  onCallEnded?: () => void;
+  onCallDetected?: (phoneNumber: string) => void;
 }
 
-export default function CallDetectionService({
-  onCallDetected,
-  onCallStarted,
-  onCallEnded,
-}: CallDetectionServiceProps) {
-  const router = useRouter();
-  const callDetectorRef = useRef<any>(null);
-  const lastPhoneNumberRef = useRef<string | null>(null);
+const CallDetectionService: React.FC<CallDetectionServiceProps> = ({ onCallDetected }) => {
+  const navigation = useNavigation();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'android') {
-      requestPermissions();
-    } else {
-      // iOS has limited call detection capabilities
-      Alert.alert(
-        'Hinweis',
-        'Auf iOS ist die automatische Anruferkennung eingeschränkt. Bitte öffne Notizen manuell.'
-      );
-    }
+    if (Platform.OS !== 'android') return;
 
-    return () => {
-      if (callDetectorRef.current) {
-        callDetectorRef.current.dispose();
+    const checkPermissions = async () => {
+      try {
+        setHasPermission(true);
+        startCallDetection();
+      } catch (error) {
+        setHasPermission(false);
       }
     };
+    checkPermissions();
   }, []);
 
-  const requestPermissions = async () => {
+  const startCallDetection = useCallback(() => {
+    if (Platform.OS !== 'android' || !hasPermission) return;
+
     try {
-      if (Platform.OS === 'android' && Platform.Version >= 23) {
-        const permissions = [
-          PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-          PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-        ];
+      // Import dynamisch, um Fehler auf iOS zu vermeiden
+      const CallDetection = require('react-native-call-detection');
+      
+      CallDetection.start({
+        onCallStart: (callInfo: any) => handleCallStart(callInfo),
+        onCallIncoming: (callInfo: any) => handleCallStart(callInfo),
+        onCallOutgoing: (callInfo: any) => handleCallStart(callInfo),
+      });
+    } catch (error) {
+      console.error('Fehler beim Starten der Call Detection:', error);
+    }
+  }, [hasPermission]);
 
-        const granted = await PermissionsAndroid.requestMultiple(permissions);
-
-        const allGranted = Object.values(granted).every(
-          (status) => status === PermissionsAndroid.RESULTS.GRANTED
-        );
-
-        if (allGranted) {
-          startCallDetection();
-        } else {
-          Alert.alert(
-            'Berechtigungen erforderlich',
-            'Bitte erlaube den Zugriff auf Anrufstatus, um automatische Notizen zu aktivieren.'
-          );
-        }
+  const handleCallStart = useCallback(async (callInfo: any) => {
+    try {
+      let phoneNumber = callInfo.phoneNumber || callInfo.number || '';
+      
+      // Bereinige die Telefonnummer
+      phoneNumber = phoneNumber.replace(/[^\d+]/g, '');
+      
+      // Ignoriere zu kurze Nummern
+      if (phoneNumber.length < 5) return;
+      
+      // Falls keine Ländervorwahl, füge +49 hinzu (Deutschland)
+      if (!phoneNumber.startsWith('+') && phoneNumber.length >= 10) {
+        phoneNumber = `+49${phoneNumber.substring(1)}`;
+      }
+      
+      // Markiere den Anruf in der Datenbank
+      await markCallStarted(phoneNumber);
+      
+      // Callback oder Navigation
+      if (onCallDetected) {
+        onCallDetected(phoneNumber);
       } else {
-        startCallDetection();
+        // @ts-ignore - Navigation zu Detailansicht
+        navigation.navigate('note-detail', { phoneNumber });
       }
     } catch (error) {
-      console.error('Fehler bei Berechtigungsanfrage:', error);
+      console.error('Fehler bei der Verarbeitung des Anrufs:', error);
     }
-  };
+  }, [navigation, onCallDetected]);
 
-  const startCallDetection = () => {
-    try {
-      if (!CallDetectorManager) {
-        console.log('CallDetectorManager not available');
-        return;
-      }
-
-      callDetectorRef.current = new CallDetectorManager(
-        (event: any, phoneNumber: string | null) => {
-          console.log('Call Event:', event, 'Phone Number:', phoneNumber);
-
-          if (event === 'Connected' || event === 'Incoming') {
-            handleCallStarted(phoneNumber);
-          } else if (event === 'Disconnected') {
-            handleCallEnded();
-          }
-        },
-        false, // Read call number from call log (requires READ_CALL_LOG permission)
-        () => {
-          console.log('Permissions granted for call detection');
-        },
-        () => {
-          console.log('Permissions denied for call detection');
-          Alert.alert(
-            'Berechtigungen verweigert',
-            'Die App benötigt Zugriff auf Anrufstatus für automatische Notizen.'
-          );
-        }
-      );
-    } catch (error) {
-      console.error('Fehler beim Starten der Anruferkennung:', error);
-    }
-  };
-
-  const handleCallStarted = async (phoneNumber: string | null) => {
-    if (!phoneNumber) {
-      phoneNumber = 'Unbekannte Nummer';
-    }
-
-    console.log('Call started with:', phoneNumber);
-    lastPhoneNumberRef.current = phoneNumber;
-
-    try {
-      // Store current call in AsyncStorage
-      await AsyncStorage.setItem('currentCall', phoneNumber);
-
-      // Mark call started in backend
-      await fetch(
-        `${EXPO_PUBLIC_BACKEND_URL}/api/notes/${encodeURIComponent(phoneNumber)}/call-started`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      // WICHTIG: Nicht mehr automatisch navigieren!
-      // Stattdessen Floating Button anzeigen (wird vom Parent-Component gemacht)
-      if (onCallStarted) {
-        onCallStarted(phoneNumber);
-      }
-
-      if (onCallDetected) {
-        onCallDetected();
-      }
-    } catch (error) {
-      console.error('Fehler beim Verarbeiten des Anrufs:', error);
-    }
-  };
-
-  const handleCallEnded = async () => {
-    console.log('Call ended');
-    
-    try {
-      const currentCall = await AsyncStorage.getItem('currentCall');
-      await AsyncStorage.removeItem('currentCall');
-      
-      // Callback für Parent-Component
-      if (onCallEnded) {
-        onCallEnded();
-      }
-      
-      // Wenn wir gerade in der Notiz-Ansicht sind, navigiere zurück
-      if (currentCall && lastPhoneNumberRef.current) {
-        // Kurze Verzögerung, damit Benutzer noch letzte Eingabe machen kann
-        setTimeout(() => {
-          router.push('/');
-          lastPhoneNumberRef.current = null;
-        }, 1000); // 1 Sekunde Verzögerung
-      }
-      
-      if (onCallDetected) {
-        onCallDetected();
-      }
-    } catch (error) {
-      console.error('Fehler beim Beenden des Anrufs:', error);
-    }
-  };
-
-  // This component doesn't render anything
   return null;
-}
+};
+
+export default CallDetectionService;

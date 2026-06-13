@@ -1,288 +1,112 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  SafeAreaView,
-  StatusBar,
-  RefreshControl,
-  Alert,
-  Modal,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, ActivityIndicator, RefreshControl, Platform } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { PhoneNumberSummary, getAllPhoneNumbers, initDatabase } from '../utils/database';
 import CallDetectionService from '../components/CallDetectionService';
 import FloatingCallButton from '../components/FloatingCallButton';
-import * as DocumentPicker from 'expo-document-picker';
-import { exportToCSV, createBackup } from '../utils/exportUtils';
 
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-interface PhoneNumberSummary {
-  phone_number: string;
-  last_note: string | null;
-  last_call_time: string;
-  note_count: number;
-}
-
-export default function Index() {
-  const router = useRouter();
+const HomeScreen: React.FC = () => {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumberSummary[]>([]);
-  const [filteredNumbers, setFilteredNumbers] = useState<PhoneNumberSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [activeCall, setActiveCall] = useState<string | null>(null);
+  const [dbInitialized, setDbInitialized] = useState(false);
 
-  const fetchPhoneNumbers = async () => {
+  // Initialisiere Datenbank
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await initDatabase();
+        setDbInitialized(true);
+        await loadPhoneNumbers();
+      } catch (error) {
+        console.error('Fehler bei der Datenbankinitialisierung:', error);
+        Alert.alert('Fehler', 'Datenbank konnte nicht initialisiert werden');
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
+  }, []);
+
+  // Lade Telefonnummern
+  const loadPhoneNumbers = useCallback(async () => {
+    if (!dbInitialized) return;
     try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/notes`);
-      const data = await response.json();
-      setPhoneNumbers(data);
-      setFilteredNumbers(data);
+      setLoading(true);
+      const numbers = await getAllPhoneNumbers(searchQuery || undefined);
+      setPhoneNumbers(numbers);
     } catch (error) {
       console.error('Fehler beim Laden der Telefonnummern:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [dbInitialized, searchQuery]);
 
-  useEffect(() => {
-    fetchPhoneNumbers();
-  }, []);
+  // Aktualisiere bei Fokus
+  useFocusEffect(
+    useCallback(() => {
+      if (dbInitialized) {
+        loadPhoneNumbers();
+      }
+    }, [dbInitialized, loadPhoneNumbers])
+  );
 
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredNumbers(phoneNumbers);
-    } else {
-      const filtered = phoneNumbers.filter((item) =>
-        item.phone_number.includes(searchQuery)
-      );
-      setFilteredNumbers(filtered);
-    }
-  }, [searchQuery, phoneNumbers]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchPhoneNumbers();
-  }, []);
-
-  const handleExportCSV = async () => {
+  // Export als CSV
+  const exportAllAsCSV = async () => {
     try {
-      setShowMenu(false);
-      await exportToCSV(phoneNumbers);
-      Alert.alert('Erfolg', 'CSV wurde exportiert');
+      setLoading(true);
+      const allNumbers = await getAllPhoneNumbers();
+      if (allNumbers.length === 0) {
+        Alert.alert('Keine Daten', 'Es gibt keine Notizen zum Exportieren');
+        return;
+      }
+
+      let csvContent = 'Telefonnummer,Letzte Notiz,Letzter Anruf,Anzahl Notizen\n';
+      allNumbers.forEach(number => {
+        const lastNote = number.last_note ? `"${number.last_note.replace(/"/g, '""')}"` : '';
+        csvContent += `"${number.phone_number}",${lastNote},"${number.last_call_time}",${number.note_count}\n`;
+      });
+
+      const fileUri = FileSystem.documentDirectory + 'calllivenotes_export.csv';
+      await FileSystem.writeAsStringAsync(fileUri, csvContent);
+      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'CallLiveNotes CSV Export' });
     } catch (error) {
-      console.error('CSV Export Fehler:', error);
+      console.error('Fehler beim CSV-Export:', error);
+      Alert.alert('Fehler', 'Export fehlgeschlagen');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCreateBackup = async () => {
+  // Export als Backup
+  const exportBackup = async () => {
     try {
-      setShowMenu(false);
-      
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/backup`);
-      
-      if (!response.ok) {
-        throw new Error(`Backend-Fehler: ${response.status}`);
-      }
-      
-      const backupData = await response.json();
-      
-      if (!backupData || !backupData.data) {
-        throw new Error('Ungültige Backup-Daten vom Server');
-      }
-      
-      await createBackup(backupData);
-      
-      if (Platform.OS === 'web') {
-        window.alert('Backup wurde erstellt und heruntergeladen');
-      } else {
-        Alert.alert('Erfolg', 'Backup wurde erstellt und gespeichert');
-      }
+      setLoading(true);
+      const { createBackup } = require('../utils/database');
+      const backupData = await createBackup();
+      const fileUri = FileSystem.documentDirectory + 'calllivenotes_backup.json';
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(backupData, null, 2));
+      await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'CallLiveNotes Backup' });
     } catch (error) {
-      console.error('Backup Fehler:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unbekannter Fehler';
-      
-      if (Platform.OS === 'web') {
-        window.alert(`Fehler beim Backup: ${errorMsg}`);
-      } else {
-        Alert.alert('Fehler', `Backup konnte nicht erstellt werden: ${errorMsg}`);
-      }
+      console.error('Fehler beim Backup-Export:', error);
+      Alert.alert('Fehler', 'Backup-Export fehlgeschlagen');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRestoreBackup = async () => {
-    try {
-      setShowMenu(false);
-      
-      if (Platform.OS === 'web') {
-        // Web: File Input verwenden
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json,.json';
-        
-        input.onchange = async (e: any) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          const reader = new FileReader();
-          reader.onload = async (event: any) => {
-            try {
-              const backupData = JSON.parse(event.target.result);
-              
-              // Bestätigung
-              const mode = window.confirm(
-                'Backup wiederherstellen?\n\n' +
-                'OK = Zusammenführen (fügt neue Notizen hinzu)\n' +
-                'Abbrechen = Abbrechen\n\n' +
-                'Für "Ersetzen" (löscht alle Daten) nutze bitte die Mobile App.'
-              );
-              
-              if (mode) {
-                await restoreBackupData(backupData, 'merge');
-              }
-            } catch (error) {
-              console.error('JSON Parse Error:', error);
-              window.alert('Fehler: Ungültige Backup-Datei');
-            }
-          };
-          reader.readAsText(file);
-        };
-        
-        input.click();
-      } else {
-        // Mobile: DocumentPicker verwenden
-        const result = await DocumentPicker.getDocumentAsync({
-          type: 'application/json',
-          copyToCacheDirectory: true,
-        });
-
-        if (result.canceled) {
-          return;
-        }
-
-        // Bestätigung vom Benutzer
-        Alert.alert(
-          'Backup wiederherstellen',
-          'Möchtest du das Backup wiederherstellen? Du kannst wählen zwischen:\n\n- Zusammenführen: Fügt neue Notizen hinzu\n- Ersetzen: Löscht alle aktuellen Daten',
-          [
-            { text: 'Abbrechen', style: 'cancel' },
-            {
-              text: 'Zusammenführen',
-              onPress: () => restoreBackupFile(result.assets[0].uri, 'merge'),
-            },
-            {
-              text: 'Ersetzen',
-              style: 'destructive',
-              onPress: () => restoreBackupFile(result.assets[0].uri, 'replace'),
-            },
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Restore Fehler:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Fehler beim Auswählen der Datei');
-      } else {
-        Alert.alert('Fehler', 'Fehler beim Auswählen der Datei');
-      }
-    }
+  // Formatierung der Telefonnummer für die Anzeige
+  const formatPhoneNumber = (phoneNumber: string): string => {
+    // Entferne Leerzeichen und Bindestriche für die Anzeige
+    return phoneNumber.replace(/[\s-]/g, '');
   };
 
-  const restoreBackupData = async (backupData: any, mode: string) => {
-    try {
-      const restoreResponse = await fetch(
-        `${EXPO_PUBLIC_BACKEND_URL}/api/restore`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...backupData,
-            mode,
-          }),
-        }
-      );
-
-      if (restoreResponse.ok) {
-        const result = await restoreResponse.json();
-        const message = `Backup wiederhergestellt!\n${result.restored_notes} Notizen wiederhergestellt`;
-        
-        if (Platform.OS === 'web') {
-          window.alert(message);
-        } else {
-          Alert.alert('Erfolg', message);
-        }
-        fetchPhoneNumbers();
-      } else {
-        const error = await restoreResponse.json();
-        const errorMsg = error.detail || 'Backup konnte nicht wiederhergestellt werden';
-        
-        if (Platform.OS === 'web') {
-          window.alert('Fehler: ' + errorMsg);
-        } else {
-          Alert.alert('Fehler', errorMsg);
-        }
-      }
-    } catch (error) {
-      console.error('Restore Data Fehler:', error);
-      const errorMsg = 'Backup konnte nicht wiederhergestellt werden';
-      
-      if (Platform.OS === 'web') {
-        window.alert('Fehler: ' + errorMsg);
-      } else {
-        Alert.alert('Fehler', errorMsg);
-      }
-    }
-  };
-
-  const restoreBackupFile = async (fileUri: string, mode: string) => {
-    try {
-      // Datei lesen
-      const response = await fetch(fileUri);
-      const backupData = await response.json();
-
-      // An Backend senden
-      const restoreResponse = await fetch(
-        `${EXPO_PUBLIC_BACKEND_URL}/api/restore`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...backupData,
-            mode,
-          }),
-        }
-      );
-
-      if (restoreResponse.ok) {
-        const result = await restoreResponse.json();
-        Alert.alert(
-          'Erfolg',
-          `Backup wiederhergestellt!\n${result.restored_notes} Notizen wiederhergestellt`
-        );
-        fetchPhoneNumbers();
-      } else {
-        const error = await restoreResponse.json();
-        Alert.alert('Fehler', error.detail || 'Backup konnte nicht wiederhergestellt werden');
-      }
-    } catch (error) {
-      console.error('Restore File Fehler:', error);
-      Alert.alert('Fehler', 'Backup konnte nicht wiederhergestellt werden');
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  // Formatierung des Datums
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
@@ -303,262 +127,121 @@ export default function Index() {
     });
   };
 
-  const renderItem = ({ item }: { item: PhoneNumberSummary }) => (
-    <TouchableOpacity
-      style={styles.phoneItem}
-      onPress={() => router.push(`/note-detail/${encodeURIComponent(item.phone_number)}`)}
-    >
-      <View style={styles.phoneIconContainer}>
-        <Ionicons name="call" size={24} color="#4CAF50" />
-      </View>
-      <View style={styles.phoneInfo}>
-        <Text style={styles.phoneNumber}>{item.phone_number}</Text>
-        <Text style={styles.lastNote} numberOfLines={1}>
-          {item.last_note || 'Keine Notizen'}
-        </Text>
-      </View>
-      <View style={styles.phoneMetaContainer}>
-        <Text style={styles.timeText}>{formatDate(item.last_call_time)}</Text>
-        <View style={styles.noteBadge}>
-          <Text style={styles.noteBadgeText}>{item.note_count}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // Render
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <CallDetectionService 
-        onCallDetected={fetchPhoneNumbers} 
-        onCallStarted={(phoneNumber) => setActiveCall(phoneNumber)}
-        onCallEnded={() => setActiveCall(null)}
+    <View style={styles.container}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Suche nach Telefonnummer oder Notiz..."
+        placeholderTextColor="#999"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        keyboardType="phone-pad"
       />
       
-      {/* Floating Button während eines Anrufs */}
-      {activeCall && (
-        <FloatingCallButton 
-          phoneNumber={activeCall}
-          onPress={() => setActiveCall(null)}
-        />
-      )}
-      
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Anrufnotizen</Text>
-        <TouchableOpacity
-          onPress={() => setShowMenu(true)}
-          style={styles.menuButton}
-        >
-          <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+      <View style={styles.actionBar}>
+        <TouchableOpacity style={styles.actionButton} onPress={exportAllAsCSV} disabled={loading}>
+          <Text style={styles.actionButtonText}>CSV Export</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={exportBackup} disabled={loading}>
+          <Text style={styles.actionButtonText}>Backup</Text>
         </TouchableOpacity>
       </View>
 
-      <Modal
-        visible={showMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowMenu(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowMenu(false)}
-        >
-          <View style={styles.menuModal}>
-            <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>Optionen</Text>
-              <TouchableOpacity onPress={() => setShowMenu(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleExportCSV}
-            >
-              <Ionicons name="document-outline" size={24} color="#4CAF50" />
-              <Text style={styles.menuItemText}>Alle als CSV exportieren</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleCreateBackup}
-            >
-              <Ionicons name="cloud-download-outline" size={24} color="#4CAF50" />
-              <Text style={styles.menuItemText}>Backup erstellen</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleRestoreBackup}
-            >
-              <Ionicons name="cloud-upload-outline" size={24} color="#FF9800" />
-              <Text style={styles.menuItemText}>Backup wiederherstellen</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Telefonnummer suchen..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          keyboardType="phone-pad"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#999" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {filteredNumbers.length === 0 ? (
+      {loading ? (
+        <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+      ) : phoneNumbers.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="call-outline" size={80} color="#555" />
-          <Text style={styles.emptyText}>
-            {searchQuery ? 'Keine Ergebnisse gefunden' : 'Noch keine Anrufnotizen'}
-          </Text>
+          <Text style={styles.emptyText}>Keine Notizen vorhanden</Text>
           <Text style={styles.emptySubtext}>
-            {searchQuery
-              ? 'Versuche eine andere Nummer'
-              : 'Notizen werden automatisch bei Anrufen erstellt'}
+            {Platform.OS === 'android' 
+              ? 'Notizen werden automatisch bei Anrufen erstellt' 
+              : 'Tippen Sie auf den + Button, um eine Notiz manuell zu erstellen'}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={filteredNumbers}
-          renderItem={renderItem}
+          data={phoneNumbers}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.card}
+              onPress={() => {
+                // @ts-ignore - Navigation wird durch Expo Router gehandhabt
+                router.push(`/note-detail/${encodeURIComponent(item.phone_number)}`);
+              }}
+            >
+              <View style={styles.cardContent}>
+                <Text style={styles.phoneNumber}>{formatPhoneNumber(item.phone_number)}</Text>
+                {item.last_note && (
+                  <Text style={styles.lastNote} numberOfLines={1}>
+                    {item.last_note}
+                  </Text>
+                )}
+                <View style={styles.cardMeta}>
+                  <Text style={styles.metaText}>Letzter Anruf: {formatDate(item.last_call_time)}</Text>
+                  <View style={styles.noteCountContainer}>
+                    <Text style={styles.noteCountText}>{item.note_count} Notizen</Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
           keyExtractor={(item) => item.phone_number}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#4CAF50"
-              colors={['#4CAF50']}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadPhoneNumbers} />}
+          contentContainerStyle={styles.listContent}
         />
       )}
-    </SafeAreaView>
-  );
-}
 
+      {Platform.OS === 'android' && <CallDetectionService />}
+      <FloatingCallButton />
+    </View>
+  );
+};
+
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    height: 48,
-  },
-  searchIcon: {
-    marginRight: 8,
+    backgroundColor: '#f5f5f5',
+    paddingTop: 60,
   },
   searchInput: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 16,
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  phoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
     marginBottom: 12,
+    fontSize: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  phoneIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
   },
-  phoneInfo: {
-    flex: 1,
+  actionButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  phoneNumber: {
-    fontSize: 18,
-    fontWeight: '600',
+  actionButtonText: {
     color: '#fff',
-    marginBottom: 4,
-  },
-  lastNote: {
     fontSize: 14,
-    color: '#999',
+    fontWeight: '500',
   },
-  phoneMetaContainer: {
-    alignItems: 'flex-end',
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 6,
-  },
-  noteBadge: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 10,
-    minWidth: 24,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  noteBadgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#fff',
+  loader: {
+    marginTop: 40,
   },
   emptyContainer: {
     flex: 1,
@@ -567,52 +250,69 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginTop: 24,
-    textAlign: 'center',
+    color: '#666',
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
     color: '#999',
-    marginTop: 8,
     textAlign: 'center',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+  listContent: {
+    paddingBottom: 20,
   },
-  menuModal: {
-    backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  menuHeader: {
+  cardContent: {
+    padding: 16,
+  },
+  phoneNumber: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  lastNote: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  cardMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  menuTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+  metaText: {
+    fontSize: 12,
+    color: '#999',
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+  noteCountContainer: {
+    backgroundColor: '#007AFF',
     borderRadius: 12,
-    marginBottom: 8,
-    backgroundColor: '#2a2a2a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  menuItemText: {
-    fontSize: 16,
+  noteCountText: {
     color: '#fff',
-    marginLeft: 16,
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
+
+// Typ-Definition für router (wird durch Expo Router bereitgestellt)
+declare const router: {
+  push: (path: string) => void;
+};
+
+export default HomeScreen;
