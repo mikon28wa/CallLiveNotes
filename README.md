@@ -1,166 +1,188 @@
-# CallLiveNotes
+# CallLiveNotes 📞📝
 
-Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonanrufen. **Vollständig offline mit lokaler Speicherung auf dem Gerät.** Optimiert für Android mit eingeschränkter Funktionalität auf iOS.
+**Eine mobile App zum Erstellen und Verwalten von Notizen während Telefonanrufen – vollständig offline mit lokaler Speicherung.**
+
+---
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform: Android/iOS](https://img.shields.io/badge/Platform-Android%2FiOS-blue)]
+[![Status: Aktiv](https://img.shields.io/badge/Status-Aktiv-green)
 
 ---
 
-## Funktionen
+## ✨ **Funktionen**
 
-- **Vollständig offline**: Alle Daten werden lokal auf dem Gerät gespeichert (SQLite)
-- **Automatische Notizerstellung**: Erkennung eingehender/ausgehender Anrufe (Android)
-- **Zeitgestempelte Notizen**: Jede Notiz mit Datum und Uhrzeit
-- **Notizhistorie**: Vollständige Historie pro Telefonnummer
-- **Export-Optionen**: CSV, Text, JSON Backup
-- **Plattformunterstützung**: Android (voll), iOS (manuell)
-
----
-
-## Technologie-Stack
-
-| Bereich | Technologie |
-|---------|-------------|
-| Frontend | React Native + Expo Router |
-| Datenbank | SQLite (expo-sqlite) |
-| Anruferkennung | react-native-call-detection (Android) |
-| Dateisystem | expo-file-system |
-| Teilen | expo-sharing |
+| Feature | Android | iOS |
+|---------|---------|-----|
+| **Automatische Anruferkennung** | ✅ | ❌ (manuell) |
+| **Zeitgestempelte Notizen** | ✅ | ✅ |
+| **Notizhistorie pro Telefonnummer** | ✅ | ✅ |
+| **Suche nach Telefonnummern** | ✅ | ✅ |
+| **Export (PDF/CSV/JSON)** | ✅ | ✅ |
+| **Backup & Wiederherstellung** | ✅ | ✅ |
+| **Dunkles Theme** | ✅ | ✅ |
+| **Offline-Nutzung** | ✅ | ✅ |
 
 ---
 
-## Installation
+## 🚀 **Schnellstart**
 
+### **Voraussetzungen**
+- **Android 6.0+** (für automatische Anruferkennung)
+- **iOS** (manuelle Notizerstellung)
+- **Node.js 18+** (für Frontend)
+- **Python 3.10+** (für Backend)
+- **MongoDB 5.0+** (für Backend-Datenbank)
+
+---
+
+### **Installation**
+
+#### **1. Backend (FastAPI)**
 ```bash
-git clone https://github.com/mikon28wa/CallLiveNotes.git
-cd CallLiveNotes/frontend
+cd backend
+pip install -r requirements.txt
+python server.py
+```
+→ Backend läuft auf `http://0.0.0.0:8001`
+
+#### **2. Frontend (React Native + Expo)**
+```bash
+cd frontend
 yarn install
 yarn start
 ```
+→ Frontend läuft auf Port `3000` (Expo Go)
 
 ---
 
-## Verwendung
+## 📱 **Nutzung**
 
-1. **Hauptbildschirm**: Zeigt alle Telefonnummern mit Notizen an
-2. **Detailansicht**: Alle Notizen für eine Telefonnummer
-3. **Manuelle Notiz**: Tippen Sie auf den + Button
-4. **Export**: CSV, Text oder JSON Backup
-5. **Backup**: Vollständige Datensicherung
+### **Hauptbildschirm**
+- Liste aller Telefonnummern mit Notizen
+- Suchfunktion zum Filtern
+- Pull-to-Refresh
+
+### **Detailansicht**
+- Alle Notizen für eine Telefonnummer
+- **Neue Notiz**: Textfeld unten
+- **Bearbeiten**: Stift-Symbol
+- **Löschen**: Papierkorb-Symbol
+- **Export**: Teilen-Symbol (PDF/CSV)
+
+### **Backup & Wiederherstellung**
+1. **Backup erstellen**:
+   - Hauptmenü → "Backup erstellen" → JSON-Datei speichern
+2. **Backup wiederherstellen**:
+   - Hauptmenü → "Backup wiederherstellen" → JSON-Datei auswählen
+   - Modus wählen: **Zusammenführen** (hinzufügen) oder **Ersetzen** (alle Daten löschen)
 
 ---
 
-## Projektstruktur
+## 🛠 **Projektstruktur**
 
 ```
-frontend/
-├── app/
-│   ├── index.tsx                      # Hauptbildschirm (Liste aller Telefonnummern)
-│   └── note-detail/
-│       └── [phoneNumber].tsx          # Detailansicht für eine Telefonnummer
-├── components/
-│   ├── CallDetectionService.tsx       # Anruferkennung (nur Android)
-│   └── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
-├── utils/
-│   └── database.ts                    # SQLite-Datenbank-Implementierung
-├── assets/                            # App-Icons und Bilder
-├── app.json                           # Expo Konfiguration
-└── package.json                       # JavaScript Abhängigkeiten
+/CallLiveNotes
+├── backend/
+│   ├── server.py           # FastAPI-Backend
+│   └── requirements.txt    # Python-Abhängigkeiten
+├── frontend/
+│   ├── app/
+│   │   ├── index.tsx       # Hauptbildschirm
+│   │   └── note-detail/    # Detailansicht
+│   ├── components/         # React-Komponenten
+│   └── app.json            # Expo-Konfiguration
+├── ANLEITUNG.md            # Detaillierte Anleitung
+├── FAQ.md                  # Häufige Fragen
+└── README.md               # Diese Datei
 ```
 
 ---
 
-## Berechtigungen
+## 🔐 **Berechtigungen (Android)**
+Die App benötigt:
+- `READ_PHONE_STATE` – Anrufstatus erkennen
+- `READ_CALL_LOG` – Telefonnummer auslesen
+- **Kein Zugriff auf Kontakte oder Telefonbuch!**
 
-### Android
-Die App benötigt folgende Berechtigungen:
-- `READ_PHONE_STATE` - Zum Erkennen von Anrufen
-- `READ_CALL_LOG` - Zum Lesen des Anrufverlaufs
-- `PROCESS_OUTGOING_CALLS` - Zum Erkennen ausgehender Anrufe
-
-### iOS
-Auf iOS ist die automatische Anruferkennung aufgrund von Apple-Einschränkungen nicht möglich. Nutzen Sie bitte die manuelle Notizerstellung über den + Button.
+> ⚠️ **iOS-Einschränkung**: Automatische Anruferkennung ist aufgrund von Apple-Richtlinien **nicht möglich**. Nutze die manuelle Notizerstellung.
 
 ---
 
-## Datenbank-Schema
+## 📊 **API-Endpunkte (Backend)**
 
-### Tabellen
+| Methode | Endpunkt | Beschreibung |
+|---------|----------|--------------|
+| `GET` | `/api/notes` | Liste aller Telefonnummern mit Notizen |
+| `GET` | `/api/notes/{phone_number}` | Alle Notizen für eine Telefonnummer |
+| `POST` | `/api/notes/{phone_number}` | Neue Notiz erstellen |
+| `PUT` | `/api/notes/{phone_number}/{note_id}` | Notiz aktualisieren |
+| `DELETE` | `/api/notes/{phone_number}/{note_id}` | Notiz löschen |
+| `GET` | `/api/backup` | Backup aller Daten (JSON) |
+| `POST` | `/api/restore` | Backup wiederherstellen |
 
-#### call_notes
-- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
-- `phone_number` (TEXT UNIQUE) - Telefonnummer
-- `last_call_time` (TEXT) - Zeitstempel des letzten Anrufs
-- `created_at` (TEXT) - Erstellungsdatum
-
-#### notes
-- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
-- `call_note_id` (INTEGER) - Fremdschlüssel zu call_notes
-- `note_id` (TEXT UNIQUE) - Eindeutige Notiz-ID
-- `text` (TEXT) - Notiztext
-- `created_at` (TEXT) - Erstellungsdatum
-- `updated_at` (TEXT) - Letztes Update
+---
+**Beispiel (Notiz erstellen):**
+```bash
+curl -X POST http://localhost:8001/api/notes/+49123456789 \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Termin vereinbart für 15.06.2026"}'
+```
 
 ---
 
-## Backup und Wiederherstellung
-
-### Backup erstellen
-1. Tippen Sie auf "Backup" im Hauptbildschirm
-2. Wählen Sie einen Speicherort
-3. Die Backup-Datei wird als JSON gespeichert
-
-### Backup wiederherstellen
-1. Tippen Sie auf "Backup wiederherstellen" im Hauptbildschirm
-2. Wählen Sie die Backup-Datei aus
-3. Wählen Sie zwischen "Zusammenführen" (fügt neue Notizen hinzu) oder "Ersetzen" (löscht alle aktuellen Daten)
-
----
-
-## Validierung
-
-### Telefonnummern
-Telefonnummern werden mit folgendem Regex validiert:
-- International: `^\+\d{8,15}$`
-- National (Deutschland): `^\d{10,15}$`
+## 🗄 **Datenbank-Schema (MongoDB)**
+### Collection: `call_notes`
+```json
+{
+  "_id": "ObjectId",
+  "phone_number": "string",
+  "notes": [
+    {
+      "note_id": "uuid",
+      "text": "string",
+      "created_at": "datetime",
+      "updated_at": "datetime"
+    }
+  ],
+  "last_call_time": "datetime"
+}
+```
 
 ---
 
-## Hinweise für Entwickler
-
-1. **Berechtigungen**: Auf Android sind `READ_PHONE_STATE` und `READ_CALL_LOG` erforderlich
-2. **iOS-Einschränkungen**: Automatische Anruferkennung ist auf iOS nicht möglich
-3. **Datenbank**: SQLite ist für mobile Geräte optimiert und erfordert keine Konfiguration
-4. **Backup**: JSON-Format für einfache Migration und Wiederherstellung
-5. **Validierung**: Telefonnummern werden mit Regex validiert
+## 🔧 **Anpassungen & Entwicklung**
+- **Backend erweitern**: Neue Endpunkte in `backend/server.py`
+- **Frontend anpassen**: Komponenten in `frontend/app/` oder `frontend/components/`
+- **Berechtigungen**: In `frontend/app.json` unter `android.permissions` eintragen
 
 ---
 
-## Migration von der alten Version
-
-Falls Sie die alte Version mit MongoDB-Backend verwendet haben:
-1. Exportieren Sie Ihre Daten aus der alten Version
-2. Installieren Sie die neue Offline-Version
-3. Importieren Sie die Daten über die Backup-Funktion
+## 📄 **Dokumentation**
+- [Detaillierte Anleitung](ANLEITUNG.md)
+- [Häufige Fragen (FAQ)](FAQ.md)
+- [API-Dokumentation](#api-endpunkte-backend)
 
 ---
 
-## Vergleich: Alte vs. Neue Version
-
-| Komponente | Alte Version | Neue Version |
-|------------|-------------|---------------|
-| **Datenbank** | MongoDB (Server) | SQLite (lokal) |
-| **Backend** | FastAPI (Python) | Nicht benötigt |
-| **Frontend** | React Native + API-Aufrufe | React Native + direkte DB-Zugriffe |
-| **Speicherort** | Server | Lokales Gerät |
-| **Offline-Fähigkeit** | Nein | Ja |
-| **Anruferkennung** | Serverabhängig | Direkt auf dem Gerät |
-| **Installation** | Komplex (Server + Client) | Einfach (nur App) |
+## 🤝 **Mitwirken**
+1. **Fork** das Repository
+2. **Branch** erstellen (`git checkout -b feature/neue-funktion`)
+3. **Commit** (`git commit -m "Füge neue Funktion hinzu"`)
+4. **Push** (`git push origin feature/neue-funktion`)
+5. **Pull Request** öffnen
 
 ---
 
-## Lizenz
-
-Dieses Projekt ist für den persönlichen Gebrauch bestimmt.
+## 📜 **Lizenz**
+Dieses Projekt ist **kostenlos für den persönlichen Gebrauch**. 
+Für kommerzielle Nutzung bitte [Kontakt aufnehmen](https://blubac.org).
 
 ---
+**💡 Tipp:** Nutze die **Backup-Funktion regelmäßig**, um deine Notizen zu sichern!
 
-**Viel Spaß mit CallLiveNotes!** 📞📝
+---
+**🐛 Probleme melden oder Feedback geben?**
+[Issues öffnen](https://github.com/mikon28wa/CallLiveNotes/issues) oder direkt per E-Mail an **mikon28wa@blubac.org**.
+
+---
+**Viel Spaß mit CallLiveNotes!** 🎉
