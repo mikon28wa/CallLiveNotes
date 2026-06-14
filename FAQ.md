@@ -36,9 +36,8 @@ Die App richtet sich an Berufstätige mit hohem Telefonaufkommen, Selbstständig
 ## Installation & Einrichtung
 
 ### 6. Wie installiere ich CallLiveNotes?
-1. Backend: Führen Sie python server.py im /app/backend-Verzeichnis aus.
-2. Frontend: Navigieren Sie zu /app/frontend und starten Sie die App mit yarn start.
-3. Die App ist über Expo Go auf Ihrem Gerät verfügbar.
+1. Frontend: Navigieren Sie zu /app/frontend und starten Sie die App mit yarn start.
+2. Die App ist über Expo Go auf Ihrem Gerät verfügbar.
 
 ### 7. Welche Berechtigungen sind erforderlich und warum?
 Auf Android benötigen wir READ_PHONE_STATE zum Erkennen von Anrufstatus und READ_CALL_LOG zum Auslesen der Telefonnummer. Diese Berechtigungen werden ausschließlich für die Anruferkennung verwendet.
@@ -48,17 +47,7 @@ Auf Android benötigen wir READ_PHONE_STATE zum Erkennen von Anrufstatus und REA
 2. Die App erkennt automatisch Anrufe und öffnet die Notizfunktion.
 3. Für iOS: Notizen müssen manuell über die Suchfunktion oder durch Eingabe der Telefonnummer erstellt werden.
 
-### 9. Kann ich die App auf einem eigenen Server hosten?
-Ja. Das Backend (FastAPI) kann auf jedem Server mit Python 3.8+ und MongoDB 5.0+ gehostet werden. Passen Sie die Datenbankverbindung in server.py an.
 
-### 10. Welche Python-Version wird für das Backend benötigt?
-Mindestens Python 3.8. Empfohlen: Python 3.10 oder höher.
-
-### 11. Welche MongoDB-Version wird unterstützt?
-CallLiveNotes ist kompatibel mit MongoDB 5.0 oder höher.
-
-### 12. Welche Ports müssen für das Backend geöffnet sein?
-Port 8001 für das FastAPI-Backend und Port 27017 für MongoDB.
 
 ---
 
@@ -107,23 +96,13 @@ Exportieren Sie als CSV und importieren Sie in Ihr CRM-System.
 
 ## Technische Details
 
-### 26. Kann ich die Datenbank selbst hosten?
-Ja, MongoDB kann auf Ihrem Server oder lokal gehostet werden. Passen Sie MONGODB_URI in server.py an.
 
-### 27. Funktioniert die App mit einer lokalen MongoDB-Instanz?
-Ja, installieren Sie MongoDB lokal und passen Sie die Verbindung im Backend an.
 
 ### 28. Wie skalierbar ist die App?
-Backend: FastAPI ist für hohe Lasten ausgelegt. Frontend: React Native ist für mobile Geräte optimiert.
+Frontend: React Native ist für mobile Geräte optimiert.
 
-### 29. Gibt es eine API-Dokumentation für Entwickler?
-Ja, in der README.md. Endpunkte: GET /api/notes, GET /api/notes/{phone_number}, POST /api/notes/{phone_number}, etc.
-
-### 30. Kann ich die App an meine Bedürfnisse anpassen?
-Ja, der Quellcode ist offen. Frontend: /app/frontend/app/, Backend: /app/backend/server.py.
-
-### 31. Welche Abhängigkeiten hat das Backend?
-fastapi, uvicorn, pymongo, python-multipart (siehe requirements.txt).
+### 29. Kann ich die App an meine Bedürfnisse anpassen?
+Ja, der Quellcode ist offen. Frontend: /app/frontend/app/.
 
 ### 32. Welche Abhängigkeiten hat das Frontend?
 react-native, expo, react-native-call-detection, @react-navigation/native (siehe package.json).
@@ -133,7 +112,7 @@ react-native, expo, react-native-call-detection, @react-navigation/native (siehe
 ## Datenschutz & Sicherheit
 
 ### 33. Wo werden meine Notizen und Daten gespeichert?
-Lokal auf Ihrem Gerät in einer MongoDB-Datenbank.
+Lokal auf Ihrem Gerät in einer SQLite-Datenbank.
 
 ### 34. Greift die App auf mein Telefonbuch oder meine Kontakte zu?
 Nein, nur Telefonnummern mit Notizen werden gespeichert.
@@ -149,10 +128,10 @@ Nein, nur Telefonnummer, Notiztext, Datum und Uhrzeit.
 Überprüfen Sie die JSON-Datei und wählen Sie den richtigen Modus (Zusammenführen/Ersetzen).
 
 ### 37. Warum werden meine Notizen nicht angezeigt?
-Prüfen Sie Internetverbindung, Backend-Status, Cache (Pull-to-Refresh) oder MongoDB.
+Prüfen Sie Cache (Pull-to-Refresh) oder die lokale Datenbank.
 
 ### 38. Die App stürzt beim Start ab – was kann ich tun?
-Prüfen Sie Logs (supervisorctl tail expo stderr / backend stderr), aktualisieren Sie Abhängigkeiten oder starten Sie das Gerät neu.
+Prüfen Sie Logs (supervisorctl tail expo stderr), aktualisieren Sie Abhängigkeiten oder starten Sie das Gerät neu.
 
 ### 39. Warum funktioniert die Suchfunktion nicht?
 Die Suche ist case-sensitive. Geben Sie die Nummer exakt ein.
@@ -167,7 +146,7 @@ Erteilen Sie Berechtigungen manuell in den Einstellungen oder löschen Sie App-D
 Bei unterdrückten Nummern oder VoIP kann die Erkennung ungenau sein. Bearbeiten Sie die Nummer manuell.
 
 ### 43. Wie setze ich die App auf Werkseinstellungen zurück?
-Löschen Sie App-Daten, deinstallieren Sie die App und setzen Sie das Backend/MongoDB zurück.
+Löschen Sie App-Daten und deinstallieren Sie die App.
 
 ---
 *Falls Ihre Frage nicht beantwortet wurde, wenden Sie sich bitte an unser Support-Team.*

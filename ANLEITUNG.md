@@ -21,8 +21,7 @@ Eine mobile App zum Erstellen und Verwalten von Notizen während Telefonanrufen.
 ## 🚀 Technologie
 
 - **Frontend**: React Native mit Expo Router
-- **Backend**: FastAPI (Python)
-- **Datenbank**: MongoDB
+- **Datenbank**: SQLite (lokal auf dem Gerät)
 - **Anruferkennung**: react-native-call-detection
 
 ## 📋 Voraussetzungen
@@ -37,14 +36,6 @@ Eine mobile App zum Erstellen und Verwalten von Notizen während Telefonanrufen.
 **Hinweis**: iOS hat sehr eingeschränkte Call Detection APIs aus Datenschutzgründen. Die automatische Anruferkennung funktioniert auf iOS nur begrenzt. Notizen können aber manuell geöffnet und verwaltet werden.
 
 ## 🔧 Installation & Start
-
-### Backend starten
-```bash
-cd /app/backend
-python server.py
-```
-
-Das Backend läuft auf `http://0.0.0.0:8001`
 
 ### Frontend starten
 ```bash
@@ -142,136 +133,7 @@ Nach Erteilung der Berechtigungen:
 - **Intuitive Navigation**: Einfache Bedienung mit klaren Icons
 - **Responsive**: Funktioniert auf verschiedenen Bildschirmgrößen
 
-## 🗄️ API-Endpunkte
 
-### GET /api/notes
-Gibt alle Telefonnummern mit Notizen zurück, sortiert nach letztem Anruf.
-
-**Query Parameter:**
-- `search` (optional): Filter nach Telefonnummer
-
-**Response:**
-```json
-[
-  {
-    "phone_number": "+491234567890",
-    "last_note": "Termin vereinbart",
-    "last_call_time": "2025-02-26T12:20:00",
-    "note_count": 3
-  }
-]
-```
-
-### GET /api/notes/{phone_number}
-Gibt alle Notizen für eine bestimmte Telefonnummer zurück.
-
-**Response:**
-```json
-{
-  "phone_number": "+491234567890",
-  "notes": [
-    {
-      "note_id": "uuid",
-      "text": "Erste Notiz",
-      "created_at": "2025-02-26T12:20:00",
-      "updated_at": "2025-02-26T12:20:00"
-    }
-  ],
-  "last_call_time": "2025-02-26T12:20:00"
-}
-```
-
-### POST /api/notes/{phone_number}
-Erstellt eine neue Notiz für eine Telefonnummer.
-
-**Body:**
-```json
-{
-  "text": "Meine Notiz"
-}
-```
-
-### PUT /api/notes/{phone_number}/{note_id}
-Aktualisiert eine bestehende Notiz.
-
-**Body:**
-```json
-{
-  "text": "Aktualisierter Text"
-}
-```
-
-### DELETE /api/notes/{phone_number}/{note_id}
-Löscht eine Notiz.
-
-### POST /api/notes/{phone_number}/call-started
-Markiert den Start eines Anrufs (aktualisiert `last_call_time`).
-
-### GET /api/backup
-Erstellt ein vollständiges Backup aller Anrufnotizen.
-
-**Response:**
-```json
-{
-  "backup_date": "2025-02-26T12:00:00",
-  "version": "1.0",
-  "total_entries": 5,
-  "data": [
-    {
-      "phone_number": "+491234567890",
-      "notes": [...],
-      "last_call_time": "2025-02-26T12:00:00"
-    }
-  ]
-}
-```
-
-### POST /api/restore
-Stellt ein Backup wieder her.
-
-**Body:**
-```json
-{
-  "backup_date": "2025-02-26T12:00:00",
-  "version": "1.0",
-  "total_entries": 5,
-  "data": [...],
-  "mode": "merge"
-}
-```
-
-**Modi:**
-- `merge` (Standard): Fügt Backup-Daten zu bestehenden hinzu, keine Duplikate
-- `replace`: Löscht alle Daten und ersetzt sie durch Backup
-
-**Response:**
-```json
-{
-  "message": "Backup wiederhergestellt",
-  "mode": "merge",
-  "restored_notes": 15,
-  "skipped_entries": 2
-}
-```
-
-## 📊 Datenbank-Schema
-
-### Collection: `call_notes`
-```json
-{
-  "_id": "ObjectId",
-  "phone_number": "string",
-  "notes": [
-    {
-      "note_id": "uuid",
-      "text": "string",
-      "created_at": "datetime",
-      "updated_at": "datetime"
-    }
-  ],
-  "last_call_time": "datetime"
-}
-```
 
 ## 🔐 Datenschutz
 
@@ -291,9 +153,6 @@ Stellt ein Backup wieder her.
 ### Projekt-Struktur
 ```
 /app
-├── backend/
-│   ├── server.py           # FastAPI Server mit allen Endpunkten
-│   └── requirements.txt    # Python Dependencies
 ├── frontend/
 │   ├── app/
 │   │   ├── index.tsx                      # Hauptbildschirm (Liste)
@@ -307,16 +166,13 @@ Stellt ein Backup wieder her.
 
 ### Neue Features hinzufügen
 
-1. **Backend**: Endpunkte in `/app/backend/server.py` erweitern
-2. **Frontend**: Komponenten in `/app/frontend/app` oder `/app/frontend/components` hinzufügen
-3. **Berechtigungen**: In `/app/frontend/app.json` unter `android.permissions` oder `ios.infoPlist` eintragen
+1. **Frontend**: Komponenten in `/app/frontend/app` oder `/app/frontend/components` hinzufügen
+2. **Berechtigungen**: In `/app/frontend/app.json` unter `android.permissions` oder `ios.infoPlist` eintragen
 
 ## 📞 Support
 
 Bei Fragen oder Problemen:
-1. Backend-Logs prüfen: `supervisorctl tail backend stderr`
-2. Frontend-Logs prüfen: `supervisorctl tail expo stderr`
-3. MongoDB-Status prüfen: `supervisorctl status`
+1. Frontend-Logs prüfen: `supervisorctl tail expo stderr`
 
 ## 📝 Lizenz
 

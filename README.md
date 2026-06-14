@@ -30,22 +30,12 @@
 - **Android 6.0+** (für automatische Anruferkennung)
 - **iOS** (manuelle Notizerstellung)
 - **Node.js 18+** (für Frontend)
-- **Python 3.10+** (für Backend)
-- **MongoDB 5.0+** (für Backend-Datenbank)
 
 ---
 
 ### **Installation**
 
-#### **1. Backend (FastAPI)**
-```bash
-cd backend
-pip install -r requirements.txt
-python server.py
-```
-→ Backend läuft auf `http://0.0.0.0:8001`
-
-#### **2. Frontend (React Native + Expo)**
+#### **1. Frontend (React Native + Expo)**
 ```bash
 cd frontend
 yarn install
@@ -82,9 +72,6 @@ yarn start
 
 ```
 /CallLiveNotes
-├── backend/
-│   ├── server.py           # FastAPI-Backend
-│   └── requirements.txt    # Python-Abhängigkeiten
 ├── frontend/
 │   ├── app/
 │   │   ├── index.tsx       # Hauptbildschirm
@@ -108,50 +95,8 @@ Die App benötigt:
 
 ---
 
-## 📊 **API-Endpunkte (Backend)**
-
-| Methode | Endpunkt | Beschreibung |
-|---------|----------|--------------|
-| `GET` | `/api/notes` | Liste aller Telefonnummern mit Notizen |
-| `GET` | `/api/notes/{phone_number}` | Alle Notizen für eine Telefonnummer |
-| `POST` | `/api/notes/{phone_number}` | Neue Notiz erstellen |
-| `PUT` | `/api/notes/{phone_number}/{note_id}` | Notiz aktualisieren |
-| `DELETE` | `/api/notes/{phone_number}/{note_id}` | Notiz löschen |
-| `GET` | `/api/backup` | Backup aller Daten (JSON) |
-| `POST` | `/api/restore` | Backup wiederherstellen |
-
----
-**Beispiel (Notiz erstellen):**
-```bash
-curl -X POST http://localhost:8001/api/notes/+49123456789 \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Termin vereinbart für 15.06.2026"}'
-```
-
----
-
-## 🗄 **Datenbank-Schema (MongoDB)**
-### Collection: `call_notes`
-```json
-{
-  "_id": "ObjectId",
-  "phone_number": "string",
-  "notes": [
-    {
-      "note_id": "uuid",
-      "text": "string",
-      "created_at": "datetime",
-      "updated_at": "datetime"
-    }
-  ],
-  "last_call_time": "datetime"
-}
-```
-
----
-
 ## 🔧 **Anpassungen & Entwicklung**
-- **Backend erweitern**: Neue Endpunkte in `backend/server.py`
+
 - **Frontend anpassen**: Komponenten in `frontend/app/` oder `frontend/components/`
 - **Berechtigungen**: In `frontend/app.json` unter `android.permissions` eintragen
 
@@ -160,7 +105,7 @@ curl -X POST http://localhost:8001/api/notes/+49123456789 \
 ## 📄 **Dokumentation**
 - [Detaillierte Anleitung](ANLEITUNG.md)
 - [Häufige Fragen (FAQ)](FAQ.md)
-- [API-Dokumentation](#api-endpunkte-backend)
+
 
 ---
 
