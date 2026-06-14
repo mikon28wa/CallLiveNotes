@@ -6,6 +6,8 @@ import * as Sharing from 'expo-sharing';
 import { PhoneNumberSummary, getAllPhoneNumbers, initDatabase } from '../utils/database';
 import CallDetectionService from '../components/CallDetectionService';
 import FloatingCallButton from '../components/FloatingCallButton';
+import { Ionicons } from '@expo/vector-icons';
+import { initCRMService } from '../utils/crmService';
 
 const HomeScreen: React.FC = () => {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumberSummary[]>([]);
@@ -14,16 +16,17 @@ const HomeScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [dbInitialized, setDbInitialized] = useState(false);
 
-  // Initialisiere Datenbank
+  // Initialisiere Datenbank und CRM-Service
   useEffect(() => {
     const initialize = async () => {
       try {
         await initDatabase();
+        await initCRMService();
         setDbInitialized(true);
         await loadPhoneNumbers();
       } catch (error) {
-        console.error('Fehler bei der Datenbankinitialisierung:', error);
-        Alert.alert('Fehler', 'Datenbank konnte nicht initialisiert werden');
+        console.error('Fehler bei der Initialisierung:', error);
+        Alert.alert('Fehler', 'Initialisierung fehlgeschlagen');
       } finally {
         setLoading(false);
       }
@@ -194,6 +197,17 @@ const HomeScreen: React.FC = () => {
 
       {Platform.OS === 'android' && <CallDetectionService />}
       <FloatingCallButton />
+      
+      {/* Settings-Button */}
+      <TouchableOpacity 
+        style={styles.settingsButton} 
+        onPress={() => {
+          // @ts-ignore - Navigation wird durch Expo Router gehandhabt
+          router.push('/settings');
+        }}
+      >
+        <Ionicons name="settings-outline" size={24} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -307,6 +321,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: 20,
+    top: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 
