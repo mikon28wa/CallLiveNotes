@@ -21,6 +21,13 @@ Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonan
 - **Rückmeldungen mit Fälligkeitsdatum**: Termine und vereinbarte Rückmeldungen verwalten
 - **Priorisierung**: Hoch, Mittel, Niedrig für bessere Organisation
 - **Arbeitsmodus-Anzeige**: Nicht telefonierte Rückmeldungen werden prominent angezeigt
+  - **Farbcodierung nach Zeit bis Termin**:
+    - 🟢 **Grün**: Mehr als 3 Stunden bis zum Termin
+    - 🟡 **Gelb-Grün Gradient**: 3 Stunden bis 1,5 Stunden vor Termin
+    - 🟡 **Gelb**: 1,5 Stunden bis 30 Minuten vor Termin
+    - 🔵 **Blau**: 30 Minuten bis Termin
+    - 🔴 **Rot**: Nach Termin (überfällig)
+  - **Echtzeit-Anzeige**: Farben aktualisieren sich automatisch alle 30 Sekunden
 - **Termin-Kollisionsprüfung**: Verhindert doppelte Terminvergabe
 - **Sortierung & Filter**: Nach Datum, Priorität, Status, Betreff
 - **Vermerke zu unbekannten Nummern**: Nutzer kann Notizen zu unbekannten Nummern hinterlegen
@@ -44,11 +51,13 @@ Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonan
 - **Unveränderliche Historie**: Vollständige Nachverfolgbarkeit aller Aktionen
 
 ### Datenschutz
-✅ **WICHTIG**: 
+✅ **WICHTIG - Datenschutzgarantie**: 
 - Es werden **ausschließlich** Nutzerdaten (Notizen, Rückmeldungen) gespeichert
-- **Alle Telefonnummern stammen aus dem Telefonbuch des Nutzers**
-- **KEINE Anrufpartner-Daten** werden erfasst oder an CRM-Systeme übertragen
-- **Lokale Speicherung**: Alle Daten bleiben auf dem Gerät des Nutzers
+- **📱 Alle Telefonnummern stammen aus dem Telefonbuch des Nutzers** - Keine externen Nummern
+- **🚫 KEINE Anrufpartner-Daten** werden erfasst, gespeichert oder an CRM-Systeme übertragen
+- **💾 Lokale Speicherung**: Alle Daten bleiben auf dem Gerät des Nutzers
+- **🔒 Keine Serververbindung** nötig - Vollständig offline-fähig
+- **Unbekannte Nummern**: Können manuell mit Notizen versehen werden (Fallback)
 
 ---
 
@@ -59,8 +68,10 @@ Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonan
 | Frontend | React Native + Expo Router |
 | Datenbank | SQLite (expo-sqlite) |
 | Anruferkennung | react-native-call-detection (Android) |
+| Kontakte | expo-contacts |
 | Dateisystem | expo-file-system |
 | Teilen | expo-sharing |
+| Speech-to-Text | Web Speech API / react-native-voice |
 
 ---
 
@@ -80,8 +91,16 @@ yarn start
 1. **Hauptbildschirm**: Zeigt alle Telefonnummern mit Notizen an
 2. **Detailansicht**: Alle Notizen für eine Telefonnummer
 3. **Manuelle Notiz**: Tippen Sie auf den + Button
-4. **Export**: CSV, Text oder JSON Backup
-5. **Backup**: Vollständige Datensicherung
+4. **Schnellnotiz**: Wird automatisch bei Anrufen angezeigt (Android)
+5. **Arbeitsmodus**: Tippen Sie auf den Arbeitsmodus-Button, um ausstehende Rückmeldungen zu sehen
+   - **Farbcodierung**: Jede Rückmeldung zeigt die verbleibende Zeit bis zum Termin an
+   - **🔴 Rot**: Überfällige Rückmeldungen
+   - **🔵 Blau**: Rückmeldungen in den nächsten 30 Minuten
+   - **🟡 Gelb**: Rückmeldungen in 30 Min - 3 Std
+   - **🟢 Grün**: Rückmeldungen in mehr als 3 Stunden
+6. **Export**: CSV, Text oder JSON Backup
+7. **Backup**: Vollständige Datensicherung
+8. **Einstellungen**: CRM-Konfiguration und App-Einstellungen
 
 ---
 
@@ -99,7 +118,7 @@ frontend/
 │   ├── CallDetectionService.tsx       # Anruferkennung (nur Android)
 │   ├── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
 │   ├── QuickNoteModal.tsx              # Schnellnotiz-Modal für Anrufe
-│   └── WorkModeDisplay.tsx            # Arbeitsmodus-Anzeige für Rückmeldungen
+│   └── WorkModeDisplay.tsx            # Arbeitsmodus-Anzeige für Rückmeldungen mit Farbcodierung
 ├── utils/
 │   ├── database.ts                    # SQLite-Datenbank-Implementierung
 │   ├── crmService.ts                  # CRM-Integrationsservice
@@ -267,7 +286,42 @@ Falls Sie die alte Version mit MongoDB-Backend verwendet haben:
 | **Anruferkennung** | Serverabhängig | Direkt auf dem Gerät |
 | **CRM-Integration** | Nicht verfügbar | Vollständig integriert |
 | **Schnellnotizen** | Nicht verfügbar | Mit Vorlagen |
+| **Rückmeldungsverwaltung** | Nicht verfügbar | Mit Farbcodierung & Priorisierung |
+| **Spracherkennung** | Nicht verfügbar | Speech-to-Text integriert |
+| **Arbeitsmodus** | Nicht verfügbar | Mit Echtzeit-Farbcodierung |
 | **Installation** | Komplex (Server + Client) | Einfach (nur App) |
+
+---
+
+## Farbcodierung der Rückmeldungen
+
+Die Arbeitsmodus-Anzeige verwendet ein intelligentes Farbcodierungssystem, um Nutzer auf anstehende Termine aufmerksam zu machen:
+
+### Farbskala
+
+| Zeit bis Termin | Farbe | Bedeutung |
+|----------------|-------|-----------|
+| > 3 Stunden | 🟢 Grün | Viel Zeit |
+| 3 Std - 1,5 Std | 🟡🟢 Gelb-Grün Gradient | Noch ausreichend Zeit |
+| 1,5 Std - 30 Min | 🟡 Gelb | Bald fällig |
+| 30 Min - 0 Min | 🔵 Blau | Dringend |
+| < 0 Min (überfällig) | 🔴 Rot | Sofort handeln |
+
+### Technische Implementierung
+- **Echtzeit-Aktualisierung**: Farben werden alle 30 Sekunden neu berechnet
+- **Smooth Transitions**: Fließende Farbübergänge zwischen den Stufen
+- **Visuelle Indikatoren**: 
+  - Farbiger linker Rand (4px) an jedem Rückmeldungseintrag
+  - Farbige Zeitangabe (z.B. "2std 30min")
+  - Farbige Fälligkeitsdatum-Anzeige
+
+### Beispiel
+```
+🟢 Rückmeldung: "Kundengespräch" - Fällig in 4std 15min
+🟡 Rückmeldung: "Angebot senden" - Fällig in 2std 5min  
+🔵 Rückmeldung: "Rückruf" - Fällig in 15min
+🔴 Rückmeldung: "Dringend" - Überfällig!
+```
 
 ---
 
