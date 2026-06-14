@@ -33,6 +33,8 @@ export const initDatabase = (): Promise<void> => {
           text TEXT NOT NULL,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
+          synced_with_crm INTEGER DEFAULT 0,
+          synced_at TEXT,
           FOREIGN KEY (call_note_id) REFERENCES call_notes(id) ON DELETE CASCADE
         );`,
         [],

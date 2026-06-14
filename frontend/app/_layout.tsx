@@ -34,5 +34,11 @@ export default function RootLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="note-detail/[phoneNumber]" />
+      <Stack.Screen name="settings" />
+    </Stack>
+  );
 }

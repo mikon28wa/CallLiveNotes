@@ -6,12 +6,23 @@ Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonan
 
 ## Funktionen
 
+### Kernfunktionen
 - **Vollständig offline**: Alle Daten werden lokal auf dem Gerät gespeichert (SQLite)
 - **Automatische Notizerstellung**: Erkennung eingehender/ausgehender Anrufe (Android)
 - **Zeitgestempelte Notizen**: Jede Notiz mit Datum und Uhrzeit
 - **Notizhistorie**: Vollständige Historie pro Telefonnummer
 - **Export-Optionen**: CSV, Text, JSON Backup
 - **Plattformunterstützung**: Android (voll), iOS (manuell)
+
+### Neue Funktionen
+- **Schnellnotiz-Funktion**: Einfache Notizerstellung während des Anrufs mit Vorlagen
+- **CRM-Integration**: Synchronisation mit CRM-Systemen (HubSpot, Salesforce, Zoho, Custom)
+- **Offline-Funktionalität**: Notizen werden gesammelt und später mit CRM synchronisiert
+- **Automatische Synchronisation**: Konfigurierbare automatische Sync-Intervalle
+- **Manuelle Synchronisation**: Einmalige Synchronisation auf Knopfdruck
+
+### Datenschutz
+✅ **WICHTIG**: Es werden **NUR Nutzer-Notizen** erfasst und synchronisiert. **KEINE Anrufpartner-Daten** werden gespeichert oder an CRM-Systeme übertragen!
 
 ---
 
@@ -54,13 +65,16 @@ yarn start
 frontend/
 ├── app/
 │   ├── index.tsx                      # Hauptbildschirm (Liste aller Telefonnummern)
-│   └── note-detail/
-│       └── [phoneNumber].tsx          # Detailansicht für eine Telefonnummer
+│   ├── note-detail/
+│   │   └── [phoneNumber].tsx          # Detailansicht für eine Telefonnummer
+│   └── settings.tsx                   # Einstellungen (CRM-Integration)
 ├── components/
 │   ├── CallDetectionService.tsx       # Anruferkennung (nur Android)
-│   └── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
+│   ├── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
+│   └── QuickNoteModal.tsx              # Schnellnotiz-Modal für Anrufe
 ├── utils/
-│   └── database.ts                    # SQLite-Datenbank-Implementierung
+│   ├── database.ts                    # SQLite-Datenbank-Implementierung
+│   └── crmService.ts                  # CRM-Integrationsservice
 ├── assets/                            # App-Icons und Bilder
 ├── app.json                           # Expo Konfiguration
 └── package.json                       # JavaScript Abhängigkeiten
@@ -98,6 +112,8 @@ Auf iOS ist die automatische Anruferkennung aufgrund von Apple-Einschränkungen 
 - `text` (TEXT) - Notiztext
 - `created_at` (TEXT) - Erstellungsdatum
 - `updated_at` (TEXT) - Letztes Update
+- `synced_with_crm` (INTEGER DEFAULT 0) - Synchronisationsstatus mit CRM
+- `synced_at` (TEXT) - Zeitstempel der letzten Synchronisation
 
 ---
 
@@ -143,6 +159,31 @@ Falls Sie die alte Version mit MongoDB-Backend verwendet haben:
 
 ---
 
+## CRM-Integration
+
+### Unterstützte CRM-Systeme
+- **HubSpot** - Vollständige Integration mit API
+- **Salesforce** - Vollständige Integration mit API
+- **Zoho CRM** - Vollständige Integration mit API
+- **Custom CRM** - Benutzerdefinierte API-Endpunkte
+
+### Konfiguration
+1. Navigieren Sie zu **Einstellungen** > **CRM-Integration**
+2. Wählen Sie Ihr CRM-System aus
+3. Geben Sie die API-Zugangsdaten ein
+4. Aktivieren Sie die Synchronisation
+5. Optional: Aktivieren Sie die automatische Synchronisation
+
+### Synchronisationsoptionen
+- **Manuell**: Synchronisation auf Knopfdruck
+- **Automatisch**: Regelmäßige Synchronisation (konfigurierbares Intervall)
+- **Offline**: Notizen werden lokal gespeichert und später synchronisiert
+
+### Datenschutz
+- **Keine Anrufpartner-Daten**: Es werden **ausschließlich** Ihre eigenen Notizen synchronisiert
+- **Lokale Speicherung**: Alle Daten bleiben auf Ihrem Gerät
+- **Sichere Übertragung**: Daten werden verschlüsselt übertragen (in echter Implementierung)
+
 ## Vergleich: Alte vs. Neue Version
 
 | Komponente | Alte Version | Neue Version |
@@ -153,6 +194,8 @@ Falls Sie die alte Version mit MongoDB-Backend verwendet haben:
 | **Speicherort** | Server | Lokales Gerät |
 | **Offline-Fähigkeit** | Nein | Ja |
 | **Anruferkennung** | Serverabhängig | Direkt auf dem Gerät |
+| **CRM-Integration** | Nicht verfügbar | Vollständig integriert |
+| **Schnellnotizen** | Nicht verfügbar | Mit Vorlagen |
 | **Installation** | Komplex (Server + Client) | Einfach (nur App) |
 
 ---
