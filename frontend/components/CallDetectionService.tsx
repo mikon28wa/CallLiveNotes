@@ -3,6 +3,7 @@ import { Platform, Alert, AppState, AppStateStatus } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { markCallStarted, createNote } from '../utils/database';
 import QuickNoteModal from './QuickNoteModal';
+import { isUnknownContact } from '../utils/contactNotesService';
 
 interface CallDetectionServiceProps {
   onCallDetected?: (phoneNumber: string) => void;
@@ -205,8 +206,17 @@ const CallDetectionService: React.FC<CallDetectionServiceProps> = ({ onCallDetec
   }, [currentCall, showQuickNote]);
 
   // Notiz erstellt - zurücksetzen
-  const handleNoteCreated = useCallback((noteText: string, phoneNumber: string) => {
+  const handleNoteCreated = useCallback(async (noteText: string, phoneNumber: string) => {
     setShowQuickNote(false);
+    
+    // Prüfe ob die Nummer unbekannt ist und zeige Hinweis an
+    const unknown = await isUnknownContact(phoneNumber);
+    if (unknown) {
+      Alert.alert(
+        'Unbekannte Nummer',
+        `Die Nummer ${phoneNumber} ist nicht in Ihrem Telefonbuch.\n\nSie können einen Vermerk hinterlegen, um sie später zu identifizieren.`
+      );
+    }
     
     // Nach kurzer Verzögerung zurücksetzen
     setTimeout(() => {

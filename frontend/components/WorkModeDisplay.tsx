@@ -28,6 +28,7 @@ import {
   getFeedbackStats,
   FeedbackStats,
 } from '../utils/feedbackService';
+import { getContactName, isUnknownContact } from '../utils/contactNotesService';
 import { useNavigation } from '@react-navigation/native';
 
 interface WorkModeDisplayProps {
@@ -115,6 +116,20 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
     }
     
     return dueTimeStr ? `${dueDateStr} um ${dueTimeStr}` : dueDateStr;
+  };
+
+  // Formatierung der Telefonnummer mit Kontaktnamen
+  const formatPhoneNumberWithContact = async (phone_number: string): Promise<string> => {
+    const contactName = await getContactName(phone_number);
+    const isUnknown = await isUnknownContact(phone_number);
+    
+    if (contactName) {
+      return `${contactName} (${phone_number})`;
+    }
+    if (isUnknown) {
+      return `${phone_number} (Unbekannt)`;
+    }
+    return phone_number;
   };
 
   // Prioritätsfarbe
@@ -226,7 +241,9 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                 </View>
                 <View style={styles.feedbackInfo}>
                   <Text style={styles.feedbackTitle}>{feedback.title}</Text>
-                  <Text style={styles.feedbackPhone}>{feedback.phone_number}</Text>
+                  <Text style={styles.feedbackPhone}>
+                    {feedback.phone_number} {feedback.is_unknown ? '(Unbekannt)' : ''}
+                  </Text>
                   <Text style={[styles.feedbackDue, { color: '#dc3545' }]}>
                     {formatDueDateTime(feedback)} - Überfällig!
                   </Text>
@@ -287,7 +304,9 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                 </View>
                 <View style={styles.feedbackInfo}>
                   <Text style={styles.feedbackTitle}>{feedback.title}</Text>
-                  <Text style={styles.feedbackPhone}>{feedback.phone_number}</Text>
+                  <Text style={styles.feedbackPhone}>
+                    {feedback.phone_number} {feedback.is_unknown ? '(Unbekannt)' : ''}
+                  </Text>
                   <Text style={[styles.feedbackDue, { color: '#ffc107' }]}>
                     Heute {feedback.due_time ? `um ${feedback.due_time}` : ''}
                   </Text>
@@ -348,7 +367,9 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                 </View>
                 <View style={styles.feedbackInfo}>
                   <Text style={styles.feedbackTitle}>{feedback.title}</Text>
-                  <Text style={styles.feedbackPhone}>{feedback.phone_number}</Text>
+                  <Text style={styles.feedbackPhone}>
+                    {feedback.phone_number} {feedback.is_unknown ? '(Unbekannt)' : ''}
+                  </Text>
                   <Text style={styles.feedbackDue}>
                     {formatDueDateTime(feedback)}
                   </Text>

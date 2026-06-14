@@ -10,6 +10,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
+import { isUnknownContact, getContactName } from './contactNotesService';
 
 // Typdefinitionen
 export interface Feedback {
@@ -29,6 +30,7 @@ export interface Feedback {
   call_note_id: number | null;
   synced_with_crm: number;
   synced_at: string | null;
+  is_unknown: boolean; // Ob die Nummer unbekannt ist (nicht im Telefonbuch)
 }
 
 export interface FeedbackSummary {
@@ -92,6 +94,7 @@ export const initFeedbackDatabase = (): Promise<void> => {
           call_note_id INTEGER,
           synced_with_crm INTEGER DEFAULT 0,
           synced_at TEXT,
+          is_unknown INTEGER DEFAULT 0,
           FOREIGN KEY (call_note_id) REFERENCES call_notes(id) ON DELETE SET NULL
         );`,
         [],
@@ -166,16 +169,19 @@ export const createFeedback = (
   priority: 'low' | 'medium' | 'high' = 'medium',
   call_note_id: number | null = null
 ): Promise<Feedback> => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const now = new Date().toISOString();
     const feedback_id = generateFeedbackId();
+    
+    // Prüfe ob die Nummer unbekannt ist
+    const isUnknown = await isUnknownContact(phone_number);
 
     db.transaction(tx => {
       tx.executeSql(
         `INSERT INTO feedbacks (
           feedback_id, phone_number, title, description, reason, 
-          due_date, due_time, status, priority, created_at, updated_at, call_note_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          due_date, due_time, status, priority, created_at, updated_at, call_note_id, is_unknown
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           feedback_id,
           phone_number,
@@ -188,7 +194,8 @@ export const createFeedback = (
           priority,
           now,
           now,
-          call_note_id
+          call_note_id,
+          isUnknown ? 1 : 0
         ],
         (_, result) => {
           const feedback: Feedback = {
@@ -208,6 +215,7 @@ export const createFeedback = (
             call_note_id,
             synced_with_crm: 0,
             synced_at: null,
+            is_unknown: isUnknown,
           };
           resolve(feedback);
         },
@@ -228,8 +236,14 @@ export const updateFeedback = (
   id: number,
   updates: Partial<Omit<Feedback, 'id' | 'feedback_id' | 'created_at'>>
 ): Promise<Feedback | null> => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const updatedAt = new Date().toISOString();
+    
+    // Falls phone_number aktualisiert wird, prüfe ob sie unbekannt ist
+    let isUnknown = updates.is_unknown;
+    if (updates.phone_number && isUnknown === undefined) {
+      isUnknown = await isUnknownContact(updates.phone_number);
+    }
     
     db.transaction(tx => {
       // Baue das UPDATE-Statement dynamisch
@@ -271,6 +285,14 @@ export const updateFeedback = (
       if (updates.call_note_id !== undefined) {
         fields.push('call_note_id = ?');
         values.push(updates.call_note_id);
+      }
+      if (updates.phone_number !== undefined) {
+        fields.push('phone_number = ?');
+        values.push(updates.phone_number);
+      }
+      if (isUnknown !== undefined) {
+        fields.push('is_unknown = ?');
+        values.push(isUnknown ? 1 : 0);
       }
       
       fields.push('updated_at = ?');
@@ -708,6 +730,7 @@ const mapRowToFeedback = (row: any): Feedback => {
     call_note_id: row.call_note_id || null,
     synced_with_crm: row.synced_with_crm || 0,
     synced_at: row.synced_at || null,
+    is_unknown: row.is_unknown === 1,
   };
 };
 
@@ -727,6 +750,27 @@ export const formatFeedbackForDisplay = (feedback: Feedback): string => {
   const dateTime = dueTime ? `${dueDate} ${dueTime}` : dueDate;
   
   return `[${feedback.priority.toUpperCase()}] ${feedback.title} - ${dateTime}`;
+};
+
+/**
+ * Formatiert ein Feedback mit Kontaktnamen für die Anzeige
+ */
+export const formatFeedbackWithContact = async (feedback: Feedback): Promise<string> => {
+  const dueDate = feedback.due_date ? new Date(feedback.due_date).toLocaleDateString('de-DE') : 'Kein Datum';
+  const dueTime = feedback.due_time || '';
+  const dateTime = dueTime ? `${dueDate} ${dueTime}` : dueDate;
+  
+  // Hole Kontaktnamen
+  const contactName = await getContactName(feedback.phone_number);
+  const isUnknown = await isUnknownContact(feedback.phone_number);
+  
+  const phoneDisplay = contactName 
+    ? `${contactName} (${feedback.phone_number})`
+    : isUnknown 
+      ? `${feedback.phone_number} (Unbekannt)`
+      : feedback.phone_number;
+  
+  return `[${feedback.priority.toUpperCase()}] ${feedback.title} - ${dateTime}\n${phoneDisplay}`;
 };
 
 /**

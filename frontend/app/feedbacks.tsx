@@ -38,7 +38,13 @@ import {
   getFeedbackStats,
   FeedbackFilter,
   FeedbackStats,
+  formatFeedbackWithContact,
 } from '../utils/feedbackService';
+import {
+  isUnknownContact,
+  getContactName,
+  setUnknownContactNote,
+} from '../utils/contactNotesService';
 import {
   startSpeechRecognition,
   stopSpeechRecognition,
@@ -77,6 +83,9 @@ const FeedbacksScreen: React.FC = () => {
     due_time: '',
     priority: 'medium' as const,
   });
+  const [contactNote, setContactNote] = useState('');
+  const [isUnknown, setIsUnknown] = useState(false);
+  const [contactName, setContactName] = useState<string | null>(null);
   
   // Spracherkennung
   const [speechAvailable, setSpeechAvailable] = useState(false);
@@ -187,10 +196,15 @@ const FeedbacksScreen: React.FC = () => {
       console.error('Fehler beim Erstellen der Rückmeldung:', error);
       Alert.alert('Fehler', 'Rückmeldung konnte nicht erstellt werden');
     }
-  }, [formData, editingFeedback]);
+  }, [formData, editingFeedback, contactNote]);
 
   const createFeedbackInternal = async () => {
     try {
+      // Falls ein Vermerk zur Nummer hinterlegt wurde, speichere diesen
+      if (contactNote.trim() && isUnknown) {
+        await setUnknownContactNote(formData.phone_number, contactNote);
+      }
+      
       const feedback = await createFeedback(
         formData.phone_number,
         formData.title,
@@ -256,6 +270,11 @@ const FeedbacksScreen: React.FC = () => {
     if (!editingFeedback) return;
     
     try {
+      // Falls ein Vermerk zur Nummer hinterlegt wurde, speichere diesen
+      if (contactNote.trim() && isUnknown) {
+        await setUnknownContactNote(formData.phone_number, contactNote);
+      }
+      
       await updateFeedback(editingFeedback.id, {
         title: formData.title,
         description: formData.description,
@@ -293,13 +312,16 @@ const FeedbacksScreen: React.FC = () => {
       due_time: '',
       priority: 'medium',
     });
+    setContactNote('');
+    setIsUnknown(false);
+    setContactName(null);
     setCollisionWarning(null);
     resetSpeechText();
     setSpeechText('');
   };
 
   // Rückmeldung bearbeiten
-  const handleEditFeedback = (feedback: Feedback) => {
+  const handleEditFeedback = async (feedback: Feedback) => {
     setEditingFeedback(feedback);
     setFormData({
       phone_number: feedback.phone_number,
@@ -310,6 +332,14 @@ const FeedbacksScreen: React.FC = () => {
       due_time: feedback.due_time || '',
       priority: feedback.priority,
     });
+    
+    // Prüfe ob die Nummer unbekannt ist
+    const unknown = await isUnknownContact(feedback.phone_number);
+    setIsUnknown(unknown);
+    
+    const name = await getContactName(feedback.phone_number);
+    setContactName(name);
+    
     setShowFeedbackModal(true);
   };
 
@@ -583,11 +613,43 @@ const FeedbacksScreen: React.FC = () => {
               <TextInput
                 style={styles.formInput}
                 value={formData.phone_number}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, phone_number: text }))}
+                onChangeText={async (text) => {
+                  setFormData(prev => ({ ...prev, phone_number: text }));
+                  if (text.trim()) {
+                    const unknown = await isUnknownContact(text);
+                    setIsUnknown(unknown);
+                    const name = await getContactName(text);
+                    setContactName(name);
+                  } else {
+                    setIsUnknown(false);
+                    setContactName(null);
+                  }
+                }}
                 placeholder="Telefonnummer aus Kontakten"
                 keyboardType="phone-pad"
               />
+              {isUnknown && contactName === null && formData.phone_number.trim() && (
+                <Text style={styles.unknownNumberText}>
+                  Diese Nummer ist nicht in Ihrem Telefonbuch
+                </Text>
+              )}
             </View>
+            
+            {/* Vermerk zur Nummer (für unbekannte Nummern) */}
+            {isUnknown && contactName === null && formData.phone_number.trim() && (
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Vermerk zur Nummer (optional)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={contactNote}
+                  onChangeText={setContactNote}
+                  placeholder="z.B. 'Kunde XY', 'Unbekannte Nummer - Rückruf vereinbart'"
+                />
+                <Text style={styles.contactNoteHint}>
+                  Dieser Vermerk wird mit der Telefonnummer gespeichert, um sie später zu identifizieren.
+                </Text>
+              </View>
+            )}
             
             {/* Betreff */}
             <View style={styles.formGroup}>
@@ -1163,6 +1225,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  unknownNumberText: {
+    fontSize: 12,
+    color: '#ff9800',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  contactNoteHint: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 

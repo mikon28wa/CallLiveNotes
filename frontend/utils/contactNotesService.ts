@@ -5,11 +5,13 @@
  * oder bekannten Telefonnummern, um die Rückverfolgbarkeit zu verbessern.
  * 
  * WICHTIG: Es werden NUR Nutzer-Vermerke gespeichert, KEINE Anrufpartner-Daten!
- * Alle Telefonnummern stammen aus dem Telefonbuch des Nutzers oder wurden
- * manuell vom Nutzer erfasst.
+ * 
+ * - Bekannte Nummern: Stammt aus dem Telefonbuch des Nutzers
+ * - Unbekannte Nummern: Wurde nicht im Telefonbuch gefunden, Nutzer kann Vermerk hinterlegen
  */
 
 import * as SQLite from 'expo-sqlite';
+import * as Contacts from 'expo-contacts';
 
 // Typdefinitionen
 export interface ContactNote {
@@ -284,27 +286,145 @@ export const getAllContactNotes = (): Promise<ContactNote[]> => {
 
 /**
  * Prüft ob eine Telefonnummer bekannt ist (im Telefonbuch)
- * Dies ist ein Platzhalter - in echter Implementierung würde das Kontaktebuch abgefragt
+ * Fragt das Kontaktebuch des Geräts ab
  */
 export const isKnownContact = async (phone_number: string): Promise<boolean> => {
-  // In echter Implementierung: Kontaktebuch abfragen
-  // Für jetzt: Annahme, dass Nummern mit Namen bekannt sind
-  // und Nummern mit Notizen in contact_notes bekannt sind
-  
   try {
+    // Normalisiere die Telefonnummer für den Vergleich
+    const normalizedPhone = normalizePhoneNumber(phone_number);
+    
+    // Prüfe in der lokalen contact_notes-Datenbank
     const notes = await getContactNotesByPhoneNumber(phone_number);
     if (notes.length > 0) {
       // Wenn es Vermerke gibt, die als bekannt markiert sind
       return notes.some(n => n.is_known);
     }
     
-    // Standard: Nummern mit +49 oder bestimmte Muster sind bekannt
-    // (Dies ist ein Platzhalter - echte Implementierung würde Kontakte abfragen)
+    // Prüfe im Kontaktebuch des Geräts
+    const { status } = await Contacts.requestPermissionsAsync();
+    
+    if (status === 'granted') {
+      const { data: contacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      
+      for (const contact of contacts) {
+        if (contact.phoneNumbers) {
+          for (const phone of contact.phoneNumbers) {
+            const contactNormalized = normalizePhoneNumber(phone.number);
+            if (contactNormalized === normalizedPhone) {
+              // Kontakt gefunden - speichere in contact_notes
+              await createContactNote(
+                phone_number,
+                `Kontakt: ${contact.name || 'Unbekannt'}`,
+                true, // is_known
+                contact.name || null
+              );
+              return true;
+            }
+          }
+        }
+      }
+    }
+    
+    // Nicht im Telefonbuch gefunden
     return false;
+    
   } catch (error) {
-    console.error('Fehler bei der Prüfung:', error);
-    return false;
+    console.error('Fehler bei der Kontaktebuch-Abfrage:', error);
+    // Falls Kontaktebuch nicht verfügbar, prüfe nur lokale Datenbank
+    try {
+      const notes = await getContactNotesByPhoneNumber(phone_number);
+      return notes.some(n => n.is_known);
+    } catch (dbError) {
+      return false;
+    }
   }
+};
+
+/**
+ * Normalisiert eine Telefonnummer für den Vergleich
+ */
+const normalizePhoneNumber = (phone_number: string): string => {
+  // Entferne alle Nicht-Ziffern und Plus-Zeichen
+  return phone_number.replace(/[^\d+]/g, '');
+};
+
+/**
+ * Prüft ob eine Telefonnummer unbekannt ist
+ */
+export const isUnknownContact = async (phone_number: string): Promise<boolean> => {
+  return !(await isKnownContact(phone_number));
+};
+
+/**
+ * Holt den Kontaktnamen aus dem Telefonbuch
+ */
+export const getContactName = async (phone_number: string): Promise<string | null> => {
+  try {
+    const normalizedPhone = normalizePhoneNumber(phone_number);
+    
+    // Prüfe in lokaler Datenbank
+    const note = await getCurrentContactNote(phone_number);
+    if (note && note.contact_name) {
+      return note.contact_name;
+    }
+    
+    // Prüfe im Kontaktebuch
+    const { status } = await Contacts.requestPermissionsAsync();
+    
+    if (status === 'granted') {
+      const { data: contacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      
+      for (const contact of contacts) {
+        if (contact.phoneNumbers) {
+          for (const phone of contact.phoneNumbers) {
+            const contactNormalized = normalizePhoneNumber(phone.number);
+            if (contactNormalized === normalizedPhone) {
+              return contact.name || null;
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Kontaktnamens:', error);
+    return null;
+  }
+};
+
+/**
+ * Erstellt oder aktualisiert einen Vermerk für eine unbekannte Nummer
+ */
+export const setUnknownContactNote = async (
+  phone_number: string,
+  note: string
+): Promise<ContactNote> => {
+  // Prüfe ob die Nummer unbekannt ist
+  const isUnknown = await isUnknownContact(phone_number);
+  
+  // Erstelle oder aktualisiere den Vermerk
+  return setContactNote(phone_number, note, !isUnknown, null);
+};
+
+/**
+ * Holt alle unbekannten Nummern mit Vermerken
+ */
+export const getUnknownContactsWithNotes = async (): Promise<ContactNote[]> => {
+  const allNotes = await getAllContactNotes();
+  return allNotes.filter(note => !note.is_known);
+};
+
+/**
+ * Holt alle bekannten Kontakte mit Vermerken
+ */
+export const getKnownContactsWithNotes = async (): Promise<ContactNote[]> => {
+  const allNotes = await getAllContactNotes();
+  return allNotes.filter(note => note.is_known);
 };
 
 /**

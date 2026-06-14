@@ -24,6 +24,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { createNote, validatePhoneNumber } from '../utils/database';
 import { createCRMNote, getConfig } from '../utils/crmService';
+import {
+  isUnknownContact,
+  setUnknownContactNote,
+  getContactName,
+} from '../utils/contactNotesService';
 
 interface QuickNoteModalProps {
   visible: boolean;
@@ -31,6 +36,7 @@ interface QuickNoteModalProps {
   phoneNumber?: string;
   onNoteCreated?: (noteText: string, phoneNumber: string) => void;
   callDirection?: 'incoming' | 'outgoing';
+  allowContactNote?: boolean; // Erlaubt das Hinterlegen eines Vermerks zur Nummer
 }
 
 interface NoteTemplate {
@@ -46,12 +52,17 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
   phoneNumber: initialPhoneNumber,
   onNoteCreated,
   callDirection,
+  allowContactNote = true,
 }) => {
   const [noteText, setNoteText] = useState('');
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || '');
   const [isCreating, setIsCreating] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [crmEnabled, setCrmEnabled] = useState(false);
+  const [isUnknown, setIsUnknown] = useState(false);
+  const [contactName, setContactName] = useState<string | null>(null);
+  const [contactNote, setContactNote] = useState('');
+  const [showContactNoteInput, setShowContactNoteInput] = useState(false);
 
   // Notiz-Vorlagen für schnelles Erfassen
   const noteTemplates: NoteTemplate[] = [
@@ -93,14 +104,26 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
     },
   ];
 
-  // Prüfe, ob CRM aktiviert ist
+  // Prüfe, ob CRM aktiviert ist und ob die Nummer unbekannt ist
   useEffect(() => {
-    const checkCRM = async () => {
+    const checkStatus = async () => {
       const config = getConfig();
       setCrmEnabled(config.enabled);
+      
+      if (phoneNumber) {
+        const unknown = await isUnknownContact(phoneNumber);
+        setIsUnknown(unknown);
+        
+        if (unknown && allowContactNote) {
+          setShowContactNoteInput(true);
+        }
+        
+        const name = await getContactName(phoneNumber);
+        setContactName(name);
+      }
     };
-    checkCRM();
-  }, []);
+    checkStatus();
+  }, [phoneNumber, allowContactNote]);
 
   // Aktualisiere Telefonnummer, wenn sich Props ändern
   useEffect(() => {
@@ -191,6 +214,11 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
         cleanedPhoneNumber = `+49${cleanedPhoneNumber.substring(1)}`;
       }
 
+      // Falls ein Vermerk zur Nummer hinterlegt wurde, speichere diesen
+      if (contactNote.trim() && allowContactNote) {
+        await setUnknownContactNote(cleanedPhoneNumber, contactNote);
+      }
+
       // Erstelle Notiz in lokaler DB
       const newNote = await createNote(cleanedPhoneNumber, noteText);
       
@@ -214,6 +242,8 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
 
       // Zurücksetzen und schließen
       setNoteText('');
+      setContactNote('');
+      setShowContactNoteInput(false);
       onClose();
       
     } catch (error) {
@@ -242,6 +272,17 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
     return phone.replace(/[\s-]/g, '');
   };
 
+  // Formatierung mit Kontaktnamen
+  const formatPhoneNumberWithContact = (phone: string): string => {
+    if (contactName) {
+      return `${contactName} (${formatPhoneNumber(phone)})`;
+    }
+    if (isUnknown) {
+      return `${formatPhoneNumber(phone)} (Unbekannt)`;
+    }
+    return formatPhoneNumber(phone);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -261,7 +302,7 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
             </Text>
             {phoneNumber && (
               <Text style={styles.phoneNumber}>
-                {formatPhoneNumber(phoneNumber)}
+                {formatPhoneNumberWithContact(phoneNumber)}
               </Text>
             )}
             <TouchableOpacity style={styles.closeButton} onPress={onClose} disabled={isCreating}>
@@ -271,6 +312,22 @@ const QuickNoteModal: React.FC<QuickNoteModalProps> = ({
 
           {/* Notiz-Eingabe */}
           <View style={styles.inputContainer}>
+            {/* Vermerk zur Nummer (für unbekannte Nummern) */}
+            {showContactNoteInput && isUnknown && (
+              <View style={styles.contactNoteContainer}>
+                <Text style={styles.contactNoteLabel}>
+                  Vermerk zur Nummer (optional):
+                </Text>
+                <TextInput
+                  style={[styles.noteInput, styles.contactNoteInput]}
+                  placeholder="z.B. 'Kunde XY', 'Unbekannte Nummer - Rückruf vereinbart'"
+                  value={contactNote}
+                  onChangeText={setContactNote}
+                  editable={!isCreating}
+                />
+              </View>
+            )}
+            
             <TextInput
               style={styles.noteInput}
               placeholder="Schnelle Notiz eingeben... (z.B. 'Rückruf vereinbart', 'Info angefragt')"
@@ -535,6 +592,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#007AFF',
     marginLeft: 8,
+  },
+  contactNoteContainer: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#fff8e1',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  contactNoteLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#ff9800',
+    marginBottom: 8,
+  },
+  contactNoteInput: {
+    minHeight: 40,
+    fontSize: 14,
   },
 });
 
