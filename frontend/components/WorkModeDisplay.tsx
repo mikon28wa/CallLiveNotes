@@ -162,6 +162,126 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
     }
   };
 
+  /**
+   * Berechnet die Farbe basierend auf der Zeit bis zum Termin
+   * - Grün: > 3 Stunden bis zum Termin
+   * - Gelb-Grün Gradient: 3 Stunden bis 1.5 Stunden (gelb-grün Mischung)
+   * - Gelb: 1.5 Stunden bis 30 Minuten
+   * - Blau: 30 Minuten bis Termin
+   * - Rot: Nach Termin (überfällig)
+   */
+  const getTimeBasedColor = (feedback: Feedback): string => {
+    if (!feedback.due_date) return '#6c757d'; // Grau wenn kein Datum
+    
+    const dueDate = new Date(feedback.due_date);
+    const now = new Date();
+    
+    // Wenn due_time vorhanden ist, parsen und zur dueDate hinzufügen
+    if (feedback.due_time) {
+      const [hours, minutes] = feedback.due_time.split(':');
+      dueDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    } else {
+      // Standardmäßig auf Ende des Tages setzen
+      dueDate.setHours(23, 59, 59, 999);
+    }
+    
+    const diffMs = dueDate.getTime() - now.getTime();
+    const diffMinutes = diffMs / (1000 * 60);
+    const diffHours = diffMinutes / 60;
+    
+    // Überfällig (rot)
+    if (diffMs < 0) {
+      return '#dc3545';
+    }
+    
+    // 0 bis 30 Minuten vor Termin (blau)
+    if (diffMinutes <= 30) {
+      return '#007AFF';
+    }
+    
+    // 30 Minuten bis 1.5 Stunden (gelb-blau Übergang)
+    if (diffMinutes <= 90) {
+      // Lineare Interpolation von blau (#007AFF) zu gelb (#ffc107)
+      const ratio = (diffMinutes - 30) / 60; // 0 bis 1
+      return interpolateColor('#007AFF', '#ffc107', ratio);
+    }
+    
+    // 1.5 Stunden bis 3 Stunden (gelb-grün Übergang)
+    if (diffHours <= 3) {
+      // Lineare Interpolation von gelb (#ffc107) zu grün (#28a745)
+      const ratio = (diffHours - 1.5) / 1.5; // 0 bis 1
+      return interpolateColor('#ffc107', '#28a745', ratio);
+    }
+    
+    // Mehr als 3 Stunden (grün)
+    return '#28a745';
+  };
+
+  /**
+   * Interpoliert zwischen zwei Farben basierend auf einem Ratio (0-1)
+   */
+  const interpolateColor = (color1: string, color2: string, ratio: number): string => {
+    // Clamp ratio zwischen 0 und 1
+    ratio = Math.max(0, Math.min(1, ratio));
+    
+    const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      } : { r: 0, g: 0, b: 0 };
+    };
+    
+    const rgbToHex = (r: number, g: number, b: number): string => {
+      return '#' + [r, g, b].map(x => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      }).join('');
+    };
+    
+    const c1 = hexToRgb(color1);
+    const c2 = hexToRgb(color2);
+    
+    const r = Math.round(c1.r + (c2.r - c1.r) * ratio);
+    const g = Math.round(c1.g + (c2.g - c1.g) * ratio);
+    const b = Math.round(c1.b + (c2.b - c1.b) * ratio);
+    
+    return rgbToHex(r, g, b);
+  };
+
+  /**
+   * Formatiert die verbleibende Zeit bis zum Termin
+   */
+  const formatTimeRemaining = (feedback: Feedback): string => {
+    if (!feedback.due_date) return '';
+    
+    const dueDate = new Date(feedback.due_date);
+    const now = new Date();
+    
+    if (feedback.due_time) {
+      const [hours, minutes] = feedback.due_time.split(':');
+      dueDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    } else {
+      dueDate.setHours(23, 59, 59, 999);
+    }
+    
+    const diffMs = dueDate.getTime() - now.getTime();
+    
+    if (diffMs < 0) {
+      return 'Überfällig';
+    }
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const remainingMinutes = diffMinutes % 60;
+    
+    if (diffHours > 0) {
+      return `${diffHours}std ${remainingMinutes}min`;
+    }
+    return `${diffMinutes}min`;
+  };
+
   // Markiere Rückmeldung als erledigt
   const handleComplete = useCallback(async (feedback: Feedback) => {
     try {
@@ -233,7 +353,7 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
         {expandedSection === 'overdue' && (
           <View style={styles.sectionContent}>
             {sorted.map(feedback => (
-              <View key={feedback.id} style={styles.feedbackItem}>
+              <View key={feedback.id} style={[styles.feedbackItem, { borderLeftWidth: 4, borderLeftColor: getTimeBasedColor(feedback) }]}>
                 <View style={styles.feedbackPriority}>
                   <Text style={[styles.priorityText, { color: getPriorityColor(feedback.priority) }]}>
                     {feedback.priority.toUpperCase()}
@@ -246,6 +366,9 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                   </Text>
                   <Text style={[styles.feedbackDue, { color: '#dc3545' }]}>
                     {formatDueDateTime(feedback)} - Überfällig!
+                  </Text>
+                  <Text style={[styles.feedbackTimeRemaining, { color: getTimeBasedColor(feedback) }]}>
+                    {formatTimeRemaining(feedback)}
                   </Text>
                 </View>
                 <View style={styles.feedbackActions}>
@@ -296,7 +419,7 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
         {expandedSection === 'today' && (
           <View style={styles.sectionContent}>
             {sorted.map(feedback => (
-              <View key={feedback.id} style={styles.feedbackItem}>
+              <View key={feedback.id} style={[styles.feedbackItem, { borderLeftWidth: 4, borderLeftColor: getTimeBasedColor(feedback) }]}>
                 <View style={styles.feedbackPriority}>
                   <Text style={[styles.priorityText, { color: getPriorityColor(feedback.priority) }]}>
                     {feedback.priority.toUpperCase()}
@@ -307,8 +430,11 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                   <Text style={styles.feedbackPhone}>
                     {feedback.phone_number} {feedback.is_unknown ? '(Unbekannt)' : ''}
                   </Text>
-                  <Text style={[styles.feedbackDue, { color: '#ffc107' }]}>
+                  <Text style={[styles.feedbackDue, { color: getTimeBasedColor(feedback) }]}>
                     Heute {feedback.due_time ? `um ${feedback.due_time}` : ''}
+                  </Text>
+                  <Text style={[styles.feedbackTimeRemaining, { color: getTimeBasedColor(feedback) }]}>
+                    {formatTimeRemaining(feedback)}
                   </Text>
                 </View>
                 <View style={styles.feedbackActions}>
@@ -359,7 +485,7 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
         {expandedSection === 'pending' && (
           <View style={styles.sectionContent}>
             {sorted.map(feedback => (
-              <View key={feedback.id} style={styles.feedbackItem}>
+              <View key={feedback.id} style={[styles.feedbackItem, { borderLeftWidth: 4, borderLeftColor: getTimeBasedColor(feedback) }]}>
                 <View style={styles.feedbackPriority}>
                   <Text style={[styles.priorityText, { color: getPriorityColor(feedback.priority) }]}>
                     {feedback.priority.toUpperCase()}
@@ -370,8 +496,11 @@ const WorkModeDisplay: React.FC<WorkModeDisplayProps> = ({
                   <Text style={styles.feedbackPhone}>
                     {feedback.phone_number} {feedback.is_unknown ? '(Unbekannt)' : ''}
                   </Text>
-                  <Text style={styles.feedbackDue}>
+                  <Text style={[styles.feedbackDue, { color: getTimeBasedColor(feedback) }]}>
                     {formatDueDateTime(feedback)}
+                  </Text>
+                  <Text style={[styles.feedbackTimeRemaining, { color: getTimeBasedColor(feedback) }]}>
+                    {formatTimeRemaining(feedback)}
                   </Text>
                 </View>
                 <View style={styles.feedbackActions}>
@@ -682,6 +811,11 @@ const styles = StyleSheet.create({
   feedbackDue: {
     fontSize: 12,
     color: '#666',
+  },
+  feedbackTimeRemaining: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginTop: 2,
   },
   feedbackActions: {
     flexDirection: 'row',
