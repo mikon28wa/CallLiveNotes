@@ -15,14 +15,40 @@ Eine mobile Anwendung zum Erstellen und Verwalten von Notizen während Telefonan
 - **Plattformunterstützung**: Android (voll), iOS (manuell)
 
 ### Neue Funktionen
+
+#### Rückmeldungsverwaltung
 - **Schnellnotiz-Funktion**: Einfache Notizerstellung während des Anrufs mit Vorlagen
-- **CRM-Integration**: Synchronisation mit CRM-Systemen (HubSpot, Salesforce, Zoho, Custom)
-- **Offline-Funktionalität**: Notizen werden gesammelt und später mit CRM synchronisiert
-- **Automatische Synchronisation**: Konfigurierbare automatische Sync-Intervalle
-- **Manuelle Synchronisation**: Einmalige Synchronisation auf Knopfdruck
+- **Rückmeldungen mit Fälligkeitsdatum**: Termine und vereinbarte Rückmeldungen verwalten
+- **Priorisierung**: Hoch, Mittel, Niedrig für bessere Organisation
+- **Arbeitsmodus-Anzeige**: Nicht telefonierte Rückmeldungen werden prominent angezeigt
+- **Termin-Kollisionsprüfung**: Verhindert doppelte Terminvergabe
+- **Sortierung & Filter**: Nach Datum, Priorität, Status, Betreff
+- **Vermerke zu unbekannten Nummern**: Nutzer kann Notizen zu unbekannten Nummern hinterlegen
+
+#### CRM-Integration
+- **Unterstützte Systeme**: HubSpot, Salesforce, Zoho, Custom CRM
+- **Synchronisationsoptionen**: Manuell, Automatisch (konfigurierbares Intervall)
+- **Offline-Funktionalität**: Notizen werden gesammelt und später synchronisiert
+- **Daten-Export/Import**: CRM-kompatible Formate
+
+#### Spracherkennung
+- **Speech-to-Text**: Spracheingabe für schnelle Notizerstellung
+- **Text-to-Speech**: Vorlesen von Notizen (optional)
+- **Plattform-Unterstützung**: Web (Web Speech API), Mobile (react-native-voice)
+
+#### Compliance & Audit
+- **Audit-Logging**: Automatische Protokollierung aller Änderungen
+- **Datenintegritätsprüfung**: Regelmäßige Überprüfung der Datenkonsistenz
+- **Compliance-Berichte**: Generierung von Berichten für regulatorische Anforderungen
+- **Verschlüsselter Export**: Sichere Datenexport-Optionen
+- **Unveränderliche Historie**: Vollständige Nachverfolgbarkeit aller Aktionen
 
 ### Datenschutz
-✅ **WICHTIG**: Es werden **NUR Nutzer-Notizen** erfasst und synchronisiert. **KEINE Anrufpartner-Daten** werden gespeichert oder an CRM-Systeme übertragen!
+✅ **WICHTIG**: 
+- Es werden **ausschließlich** Nutzerdaten (Notizen, Rückmeldungen) gespeichert
+- **Alle Telefonnummern stammen aus dem Telefonbuch des Nutzers**
+- **KEINE Anrufpartner-Daten** werden erfasst oder an CRM-Systeme übertragen
+- **Lokale Speicherung**: Alle Daten bleiben auf dem Gerät des Nutzers
 
 ---
 
@@ -67,14 +93,20 @@ frontend/
 │   ├── index.tsx                      # Hauptbildschirm (Liste aller Telefonnummern)
 │   ├── note-detail/
 │   │   └── [phoneNumber].tsx          # Detailansicht für eine Telefonnummer
-│   └── settings.tsx                   # Einstellungen (CRM-Integration)
+│   ├── settings.tsx                   # Einstellungen (CRM-Integration)
+│   └── feedbacks.tsx                  # Rückmeldungsverwaltung
 ├── components/
 │   ├── CallDetectionService.tsx       # Anruferkennung (nur Android)
 │   ├── FloatingCallButton.tsx          # Floating Button für manuelle Notizen
-│   └── QuickNoteModal.tsx              # Schnellnotiz-Modal für Anrufe
+│   ├── QuickNoteModal.tsx              # Schnellnotiz-Modal für Anrufe
+│   └── WorkModeDisplay.tsx            # Arbeitsmodus-Anzeige für Rückmeldungen
 ├── utils/
 │   ├── database.ts                    # SQLite-Datenbank-Implementierung
-│   └── crmService.ts                  # CRM-Integrationsservice
+│   ├── crmService.ts                  # CRM-Integrationsservice
+│   ├── feedbackService.ts             # Rückmeldungsverwaltung
+│   ├── contactNotesService.ts         # Vermerke zu Telefonnummern
+│   ├── speechService.ts               # Spracherkennung (Speech-to-Text)
+│   └── complianceService.ts           # Compliance & Audit-Logging
 ├── assets/                            # App-Icons und Bilder
 ├── app.json                           # Expo Konfiguration
 └── package.json                       # JavaScript Abhängigkeiten
@@ -101,7 +133,7 @@ Auf iOS ist die automatische Anruferkennung aufgrund von Apple-Einschränkungen 
 
 #### call_notes
 - `id` (INTEGER PRIMARY KEY) - Eindeutige ID
-- `phone_number` (TEXT UNIQUE) - Telefonnummer
+- `phone_number` (TEXT UNIQUE) - Telefonnummer (aus Nutzer-Telefonbuch)
 - `last_call_time` (TEXT) - Zeitstempel des letzten Anrufs
 - `created_at` (TEXT) - Erstellungsdatum
 
@@ -114,6 +146,45 @@ Auf iOS ist die automatische Anruferkennung aufgrund von Apple-Einschränkungen 
 - `updated_at` (TEXT) - Letztes Update
 - `synced_with_crm` (INTEGER DEFAULT 0) - Synchronisationsstatus mit CRM
 - `synced_at` (TEXT) - Zeitstempel der letzten Synchronisation
+
+#### feedbacks
+- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
+- `feedback_id` (TEXT UNIQUE) - Eindeutige Feedback-ID
+- `phone_number` (TEXT NOT NULL) - Telefonnummer (aus Nutzer-Telefonbuch)
+- `title` (TEXT NOT NULL) - Betreff
+- `description` (TEXT NOT NULL) - Beschreibung
+- `reason` (TEXT NOT NULL) - Grund
+- `due_date` (TEXT) - Fälligkeitsdatum (ISO)
+- `due_time` (TEXT) - Fälligkeitszeit (HH:mm)
+- `status` (TEXT) - Status: pending, completed, cancelled, overdue
+- `priority` (TEXT) - Priorität: low, medium, high
+- `created_at` (TEXT) - Erstellungsdatum
+- `updated_at` (TEXT) - Letztes Update
+- `completed_at` (TEXT) - Zeitstempel der Erledigung
+- `call_note_id` (INTEGER) - Fremdschlüssel zu call_notes
+- `synced_with_crm` (INTEGER DEFAULT 0) - Synchronisationsstatus
+- `synced_at` (TEXT) - Zeitstempel der letzten Synchronisation
+
+#### contact_notes
+- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
+- `phone_number` (TEXT NOT NULL) - Telefonnummer
+- `note` (TEXT NOT NULL) - Vermerk zur Nummer
+- `is_known` (INTEGER DEFAULT 0) - Ob die Nummer im Telefonbuch ist
+- `contact_name` (TEXT) - Name aus Telefonbuch (falls bekannt)
+- `created_at` (TEXT) - Erstellungsdatum
+- `updated_at` (TEXT) - Letztes Update
+
+#### audit_logs
+- `id` (INTEGER PRIMARY KEY) - Eindeutige ID
+- `action` (TEXT) - Aktion: CREATE, UPDATE, DELETE, COMPLETE, SYNC
+- `entity_type` (TEXT) - Entitätstyp: note, feedback, contact_note, call_note
+- `entity_id` (TEXT) - Entitäts-ID
+- `phone_number` (TEXT) - Telefonnummer
+- `details` (TEXT) - Details zur Aktion
+- `user_id` (TEXT) - Nutzer-ID (für Multi-User)
+- `timestamp` (TEXT) - Zeitstempel
+- `ip_address` (TEXT) - IP-Adresse (für Web)
+- `device_info` (TEXT) - Geräteinformationen
 
 ---
 

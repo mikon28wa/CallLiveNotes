@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, A
 import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { PhoneNumberSummary, getAllPhoneNumbers, initDatabase } from '../utils/database';
+import { PhoneNumberSummary, getAllPhoneNumbers, initAllDatabases } from '../utils/database';
 import CallDetectionService from '../components/CallDetectionService';
 import FloatingCallButton from '../components/FloatingCallButton';
 import { Ionicons } from '@expo/vector-icons';
 import { initCRMService } from '../utils/crmService';
+import { initSpeechService } from '../utils/speechService';
+import WorkModeDisplay from '../components/WorkModeDisplay';
 
 const HomeScreen: React.FC = () => {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumberSummary[]>([]);
@@ -15,13 +17,15 @@ const HomeScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dbInitialized, setDbInitialized] = useState(false);
+  const [showWorkMode, setShowWorkMode] = useState(false);
 
-  // Initialisiere Datenbank und CRM-Service
+  // Initialisiere alle Services
   useEffect(() => {
     const initialize = async () => {
       try {
-        await initDatabase();
+        await initAllDatabases();
         await initCRMService();
+        await initSpeechService();
         setDbInitialized(true);
         await loadPhoneNumbers();
       } catch (error) {
@@ -208,6 +212,33 @@ const HomeScreen: React.FC = () => {
       >
         <Ionicons name="settings-outline" size={24} color="#fff" />
       </TouchableOpacity>
+      
+      {/* Arbeitsmodus-Button */}
+      <TouchableOpacity 
+        style={styles.workModeButton} 
+        onPress={() => setShowWorkMode(true)}
+      >
+        <Ionicons name="clipboard-outline" size={24} color="#fff" />
+        <Text style={styles.workModeButtonText}>Arbeitsmodus</Text>
+      </TouchableOpacity>
+      
+      {/* Feedback-Button */}
+      <TouchableOpacity 
+        style={styles.feedbackButton} 
+        onPress={() => {
+          // @ts-ignore - Navigation wird durch Expo Router gehandhabt
+          router.push('/feedbacks');
+        }}
+      >
+        <Ionicons name="time-outline" size={24} color="#fff" />
+        <Text style={styles.feedbackButtonText}>Rückmeldungen</Text>
+      </TouchableOpacity>
+      
+      {/* WorkModeDisplay Modal */}
+      <WorkModeDisplay
+        visible={showWorkMode}
+        onClose={() => setShowWorkMode(false)}
+      />
     </View>
   );
 };
@@ -337,6 +368,56 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+  },
+  workModeButton: {
+    position: 'absolute',
+    right: 20,
+    top: 80,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#28a745',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  workModeButtonText: {
+    position: 'absolute',
+    right: 50,
+    top: 85,
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    backgroundColor: 'transparent',
+  },
+  feedbackButton: {
+    position: 'absolute',
+    right: 20,
+    top: 140,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffc107',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  feedbackButtonText: {
+    position: 'absolute',
+    right: 50,
+    top: 145,
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    backgroundColor: 'transparent',
   },
 });
 

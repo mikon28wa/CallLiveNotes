@@ -1,12 +1,15 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
+import { initFeedbackDatabase } from './feedbackService';
+import { initContactNotesDatabase } from './contactNotesService';
+import { initComplianceDatabase } from './complianceService';
 
 // Öffne oder erstelle die SQLite-Datenbank
 const db = SQLite.openDatabase('callNotes.db');
 
 // Initialisiere die Datenbank-Tabellen
 export const initDatabase = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     db.transaction(tx => {
       // Tabelle für Anrufnotizen
       tx.executeSql(
@@ -67,6 +70,19 @@ export const initDatabase = (): Promise<void> => {
       );
     }, resolve, reject);
   });
+};
+
+// Initialisiert alle Datenbank-Tabellen inkl. Feedback-Tabelle
+export const initAllDatabases = async (): Promise<void> => {
+  try {
+    await initDatabase();
+    await initFeedbackDatabase();
+    await initContactNotesDatabase();
+    await initComplianceDatabase();
+  } catch (error) {
+    console.error('Fehler bei der Datenbankinitialisierung:', error);
+    throw error;
+  }
 };
 
 // Interface für Notizen

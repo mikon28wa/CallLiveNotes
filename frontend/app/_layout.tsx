@@ -39,6 +39,7 @@ export default function RootLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="note-detail/[phoneNumber]" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="feedbacks" />
     </Stack>
   );
 }
