@@ -1,6 +1,0 @@
-# CallLiveNotes Backend - VERALTET
-# Diese Datei wird in der aktuellen Version NICHT MEHR BENÖTIGT
-
-# Für die neue Version konsultieren Sie bitte:
-# - frontend/package.json (JavaScript Abhängigkeiten)
-# - frontend/utils/database.ts (SQLite-Implementierung)
