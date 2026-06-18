@@ -1,15 +1,13 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
-import { initFeedbackDatabase } from './feedbackService';
-import { initContactNotesDatabase } from './contactNotesService';
-import { initComplianceDatabase } from './complianceService';
+import { executeSqlAsync } from './sqliteAsync';
 
 // Öffne oder erstelle die SQLite-Datenbank
 const db = SQLite.openDatabase('callNotes.db');
 
 // Initialisiere die Datenbank-Tabellen
 export const initDatabase = (): Promise<void> => {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     db.transaction(tx => {
       // Tabelle für Anrufnotizen
       tx.executeSql(
@@ -36,8 +34,6 @@ export const initDatabase = (): Promise<void> => {
           text TEXT NOT NULL,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
-          synced_with_crm INTEGER DEFAULT 0,
-          synced_at TEXT,
           FOREIGN KEY (call_note_id) REFERENCES call_notes(id) ON DELETE CASCADE
         );`,
         [],
@@ -70,19 +66,6 @@ export const initDatabase = (): Promise<void> => {
       );
     }, resolve, reject);
   });
-};
-
-// Initialisiert alle Datenbank-Tabellen inkl. Feedback-Tabelle
-export const initAllDatabases = async (): Promise<void> => {
-  try {
-    await initDatabase();
-    await initFeedbackDatabase();
-    await initContactNotesDatabase();
-    await initComplianceDatabase();
-  } catch (error) {
-    console.error('Fehler bei der Datenbankinitialisierung:', error);
-    throw error;
-  }
 };
 
 // Interface für Notizen
@@ -139,24 +122,9 @@ export interface ValidationResult {
   errors: string[];
 }
 
-// Hilfsfunktion für SQL-Transaktionen
+// Hilfsfunktion für SQL-Transaktionen (wird nun an executeSqlAsync delegiert)
 const executeSql = (sql: string, params: any[] = []): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        sql,
-        params,
-        (_, result) => {
-          resolve(result);
-        },
-        (_, error) => {
-          console.error('SQL-Fehler:', sql, error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+  return executeSqlAsync(db, sql, params);
 };
 
 // Alle Telefonnummern abrufen
@@ -699,15 +667,15 @@ const generateNoteId = (): string => {
 // Telefonnummer validieren
 export const validatePhoneNumber = (phoneNumber: string): boolean => {
   // Entferne alle Nicht-Ziffern und Plus-Zeichen
-  const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+  const cleaned = phoneNumber.replace(/[^\\d+]/g, '');
   
   // Standard-Regex für internationale Telefonnummern
-  const regex = /^\+\d{8,15}$/;
+  const regex = /^\\+\\d{8,15}$/;
   
   // Falls keine Ländervorwahl, prüfe ob es eine gültige nationale Nummer ist
   if (!cleaned.startsWith('+')) {
     // Deutsche Nummern (ohne Vorwahl)
-    if (/^\d{10,15}$/.test(cleaned)) {
+    if (/^\\d{10,15}$/.test(cleaned)) {
       return true;
     }
     return false;
@@ -826,35 +794,4 @@ export const validateBackupData = (backupData: any): ValidationResult => {
   // Prüfe version Feld
   if (!isString(backupData.version)) {
     errors.push(`version muss ein String sein, ist aber ${typeof backupData.version}`);
-  } else if (!/^\d+\.\d+\.\d+$/.test(backupData.version)) {
-    errors.push(`version muss im Format "X.Y.Z" sein, ist aber: ${backupData.version}`);
-  }
-  
-  // Prüfe created_at Feld
-  if (!isString(backupData.created_at)) {
-    errors.push(`created_at muss ein String sein, ist aber ${typeof backupData.created_at}`);
-  } else {
-    // Prüfe, ob es ein gültiges ISO-Datum ist
-    const date = new Date(backupData.created_at);
-    if (isNaN(date.getTime())) {
-      errors.push(`created_at muss ein gültiges ISO-Datum sein, ist aber: ${backupData.created_at}`);
-    }
-  }
-  
-  // Prüfe call_notes Feld
-  if (!isArray(backupData.call_notes)) {
-    errors.push(`call_notes muss ein Array sein, ist aber ${typeof backupData.call_notes}`);
-    return { valid: false, errors };
-  }
-  
-  // Validiert jede Anrufnotiz
-  for (let i = 0; i < backupData.call_notes.length; i++) {
-    const callNoteErrors = validateCallNote(backupData.call_notes[i], i);
-    errors.push(...callNoteErrors);
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors
-  };
-};
+  } else if (!/^
