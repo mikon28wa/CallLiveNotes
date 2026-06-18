@@ -5,6 +5,19 @@ import { executeSqlAsync } from './sqliteAsync';
 // Öffne oder erstelle die SQLite-Datenbank
 const db = SQLite.openDatabase('callNotes.db');
 
+// Initialisiere alle Datenbank-Tabellen
+export const initAllDatabases = async (): Promise<void> => {
+  try {
+    await initDatabase();
+    await initFeedbackDatabase();
+    await initContactNotesDatabase();
+    await initComplianceDatabase();
+  } catch (error) {
+    console.error('Fehler bei der Initialisierung der Datenbanken:', error);
+    throw error;
+  }
+};
+
 // Initialisiere die Datenbank-Tabellen
 export const initDatabase = (): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -34,6 +47,8 @@ export const initDatabase = (): Promise<void> => {
           text TEXT NOT NULL,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
+          synced_with_crm INTEGER DEFAULT 0,
+          synced_at TEXT,
           FOREIGN KEY (call_note_id) REFERENCES call_notes(id) ON DELETE CASCADE
         );`,
         [],
@@ -122,7 +137,7 @@ export interface ValidationResult {
   errors: string[];
 }
 
-// Hilfsfunktion für SQL-Transaktionen (wird nun an executeSqlAsync delegiert)
+// Hilfsfunktion für SQL-Transaktionen
 const executeSql = (sql: string, params: any[] = []): Promise<any> => {
   return executeSqlAsync(db, sql, params);
 };
@@ -424,19 +439,17 @@ export const deleteNote = (phone_number: string, note_id: string): Promise<boole
   });
 };
 
-// Anruf als gestartet markieren (für Anruferkennung)
+// Anruf als gestartet markieren
 export const markCallStarted = (phone_number: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     db.transaction(tx => {
       const now = new Date().toISOString();
 
-      // Prüfen, ob die Telefonnummer bereits existiert
       tx.executeSql(
         `SELECT id FROM call_notes WHERE phone_number = ?`,
         [phone_number],
         (_, result) => {
           if (result.rows.length === 0) {
-            // Neue call_note erstellen
             tx.executeSql(
               `INSERT INTO call_notes (phone_number, last_call_time, created_at) VALUES (?, ?, ?)`,
               [phone_number, now, now],
@@ -444,13 +457,12 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
                 resolve();
               },
               (_, error) => {
-                console.error('Fehler beim Erstellen der call_note für Anruf:', error);
+                console.error('Fehler beim Erstellen der call_note:', error);
                 reject(error);
                 return false;
               }
             );
           } else {
-            // Bestehende call_note aktualisieren
             const callNoteId = result.rows.item(0).id;
             tx.executeSql(
               `UPDATE call_notes SET last_call_time = ? WHERE id = ?`,
@@ -459,7 +471,7 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
                 resolve();
               },
               (_, error) => {
-                console.error('Fehler beim Aktualisieren der call_note für Anruf:', error);
+                console.error('Fehler beim Aktualisieren der call_note:', error);
                 reject(error);
                 return false;
               }
@@ -467,7 +479,7 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
           }
         },
         (_, error) => {
-          console.error('Fehler beim Prüfen der Telefonnummer für Anruf:', error);
+          console.error('Fehler beim Prüfen der Telefonnummer:', error);
           reject(error);
           return false;
         }
@@ -480,7 +492,6 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
 export const createBackup = (): Promise<BackupData> => {
   return new Promise((resolve, reject) => {
     db.transaction(tx => {
-      // Alle call_notes abrufen
       tx.executeSql(
         `SELECT id, phone_number, last_call_time, created_at FROM call_notes`,
         [],
@@ -488,7 +499,6 @@ export const createBackup = (): Promise<BackupData> => {
           const callNotes: BackupCallNote[] = [];
           const callNoteMap: { [key: number]: BackupCallNote } = {};
 
-          // call_notes verarbeiten
           for (let i = 0; i < callNotesResult.rows.length; i++) {
             const row = callNotesResult.rows.item(i);
             const callNote: BackupCallNote = {
@@ -502,5 +512,183 @@ export const createBackup = (): Promise<BackupData> => {
             callNoteMap[row.id] = callNote;
           }
 
-          // Alle Notizen abrufen
-            
+          tx.executeSql(
+            `SELECT call_note_id, id, note_id, text, created_at, updated_at FROM notes`,
+            [],
+            (_, notesResult) => {
+              for (let i = 0; i < notesResult.rows.length; i++) {
+                const row = notesResult.rows.item(i);
+                const callNote = callNoteMap[row.call_note_id];
+                if (callNote) {
+                  callNote.notes.push({
+                    id: row.id,
+                    note_id: row.note_id,
+                    text: row.text,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at
+                  });
+                }
+              }
+
+              const backup: BackupData = {
+                version: '1.0.0',
+                created_at: new Date().toISOString(),
+                call_notes: callNotes
+              };
+              resolve(backup);
+            },
+            (_, error) => {
+              console.error('Fehler beim Abrufen der Notizen für Backup:', error);
+              reject(error);
+              return false;
+            }
+          );
+        },
+        (_, error) => {
+          console.error('Fehler beim Abrufen der call_notes für Backup:', error);
+          reject(error);
+          return false;
+        }
+      );
+    });
+  });
+};
+
+// Backup wiederherstellen
+export const restoreBackup = (backupData: BackupData, merge: boolean = false): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    db.transaction(tx => {
+      if (!merge) {
+        // Löschen aller bestehenden Daten
+        tx.executeSql(
+          `DELETE FROM notes`,
+          [],
+          () => {},
+          (_, error) => {
+            console.error('Fehler beim Löschen der Notizen:', error);
+            return false;
+          }
+        );
+        tx.executeSql(
+          `DELETE FROM call_notes`,
+          [],
+          () => {},
+          (_, error) => {
+            console.error('Fehler beim Löschen der call_notes:', error);
+            return false;
+          }
+        );
+      }
+
+      // Wiederherstellen der Daten
+      let completed = 0;
+      const total = backupData.call_notes.length;
+
+      if (total === 0) {
+        resolve();
+        return;
+      }
+
+      backupData.call_notes.forEach((callNoteData, index) => {
+        tx.executeSql(
+          `INSERT OR REPLACE INTO call_notes (id, phone_number, last_call_time, created_at) VALUES (?, ?, ?, ?)`,
+          [callNoteData.id, callNoteData.phone_number, callNoteData.last_call_time, callNoteData.created_at],
+          () => {
+            callNoteData.notes.forEach(noteData => {
+              tx.executeSql(
+                `INSERT OR REPLACE INTO notes (id, call_note_id, note_id, text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                [noteData.id, callNoteData.id, noteData.note_id, noteData.text, noteData.created_at, noteData.updated_at],
+                () => {},
+                (_, error) => {
+                  console.error('Fehler beim Wiederherstellen der Notiz:', error);
+                  return false;
+                }
+              );
+            });
+
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          },
+          (_, error) => {
+            console.error('Fehler beim Wiederherstellen der call_note:', error);
+            reject(error);
+            return false;
+          }
+        );
+      });
+    });
+  });
+};
+
+// Hilfsfunktion zum Generieren einer eindeutigen Note-ID
+const generateNoteId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+};
+
+// Telefonnummer validieren
+export const validatePhoneNumber = (phoneNumber: string): boolean => {
+  const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+  
+  const regex = /^\+\d{8,15}$/;
+  
+  if (!cleaned.startsWith('+')) {
+    if (/^\d{10,15}$/.test(cleaned)) {
+      return true;
+    }
+    return false;
+  }
+  
+  return regex.test(cleaned);
+};
+
+// Validierungsfunktionen
+const isArray = (value: any): value is any[] => {
+  return Array.isArray(value);
+};
+
+const isString = (value: any): value is string => {
+  return typeof value === 'string';
+};
+
+const isNumber = (value: any): value is number => {
+  return typeof value === 'number';
+};
+
+// Validiere Backup-Daten
+export const validateBackupData = (backupData: any): ValidationResult => {
+  const errors: string[] = [];
+
+  if (!isString(backupData.version)) {
+    errors.push(`version muss ein String sein, ist aber ${typeof backupData.version}`);
+  }
+  
+  if (!isString(backupData.created_at)) {
+    errors.push(`created_at muss ein String sein, ist aber ${typeof backupData.created_at}`);
+  }
+  
+  if (!isArray(backupData.call_notes)) {
+    errors.push(`call_notes muss ein Array sein, ist aber ${typeof backupData.call_notes}`);
+    return { valid: false, errors };
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+};
+
+// Importiere notwendige Funktionen
+import { 
+  initFeedbackDatabase,
+  createFeedback 
+} from './feedbackService';
+
+import { 
+  initContactNotesDatabase 
+} from './contactNotesService';
+
+import { 
+  initComplianceDatabase 
+} from './complianceService';
