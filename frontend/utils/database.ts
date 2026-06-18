@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { executeSqlAsync } from './sqliteAsync';
 
 // Öffne oder erstelle die SQLite-Datenbank
@@ -131,6 +132,19 @@ export interface BackupData {
   call_notes: BackupCallNote[];
 }
 
+// Interface für signierte Backup-Daten
+export interface SignedBackupData {
+  backup: BackupData;
+  signature: string;
+  hash: string;
+}
+
+// Interface für Signatur-Informationen
+export interface BackupSignature {
+  hash: string;
+  signature: string;
+}
+
 // Interface für Validierungsergebnis
 export interface ValidationResult {
   valid: boolean;
@@ -140,6 +154,129 @@ export interface ValidationResult {
 // Hilfsfunktion für SQL-Transaktionen
 const executeSql = (sql: string, params: any[] = []): Promise<any> => {
   return executeSqlAsync(db, sql, params);
+};
+
+// Schlüssel für das Secret im AsyncStorage
+const BACKUP_SECRET_KEY = 'backup_signature_secret';
+
+// Generiere oder hole das Secret für die HMAC-Signatur
+const getOrCreateSecret = async (): Promise<string> => {
+  try {
+    // Prüfen, ob ein Secret bereits existiert
+    const existingSecret = await AsyncStorage.getItem(BACKUP_SECRET_KEY);
+    if (existingSecret) {
+      return existingSecret;
+    }
+
+    // Neues Secret generieren (32 Bytes als Hex-String)
+    const secretArray = new Uint8Array(32);
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(secretArray);
+    } else {
+      // Fallback für React Native ohne Web Crypto API
+      for (let i = 0; i < 32; i++) {
+        secretArray[i] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    // Convert to hex string
+    const secret = Array.from(secretArray)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    // Secret speichern
+    await AsyncStorage.setItem(BACKUP_SECRET_KEY, secret);
+    return secret;
+  } catch (error) {
+    console.error('Fehler beim Abrufen/Erstellen des Secrets:', error);
+    throw error;
+  }
+};
+
+// Erstelle einen SHA-256 Hash des Backup-Inhalts
+const createHash = async (data: string): Promise<string> => {
+  try {
+    // Encode data as UTF-8
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+
+    // Hash the data
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', dataBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      // Fallback für React Native
+      // Verwende react-native-crypto falls verfügbar
+      try {
+        const crypto = require('react-native-crypto');
+        const hash = crypto.createHash('sha256');
+        hash.update(data);
+        return hash.digest('hex');
+      } catch (fallbackError) {
+        // Einfacher Fallback (nicht kryptografisch sicher!)
+        console.warn('Keine sichere Hash-Funktion verfügbar, verwende Fallback');
+        // Dies ist nur ein Fallback und sollte nicht in Produktion verwendet werden
+        return data.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0).toString(16);
+      }
+    }
+  } catch (error) {
+    console.error('Fehler beim Erstellen des Hash:', error);
+    throw error;
+  }
+};
+
+// Erstelle eine HMAC-Signatur mit dem Secret
+const createHmacSignature = async (data: string, secret: string): Promise<string> => {
+  try {
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    const secretBuffer = encoder.encode(secret);
+
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+      // Import the secret key
+      const key = await window.crypto.subtle.importKey(
+        'raw',
+        secretBuffer,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      // Sign the data
+      const signatureBuffer = await window.crypto.subtle.sign('HMAC', key, dataBuffer);
+      const signatureArray = Array.from(new Uint8Array(signatureBuffer));
+      return signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      // Fallback für React Native
+      try {
+        const crypto = require('react-native-crypto');
+        const hmac = crypto.createHmac('sha256', secret);
+        hmac.update(data);
+        return hmac.digest('hex');
+      } catch (fallbackError) {
+        console.error('Fehler beim Erstellen der HMAC-Signatur:', fallbackError);
+        throw new Error('HMAC-Signatur nicht verfügbar: react-native-crypto nicht installiert');
+      }
+    }
+  } catch (error) {
+    console.error('Fehler beim Erstellen der HMAC-Signatur:', error);
+    throw error;
+  }
+};
+
+// Überprüfe eine HMAC-Signatur
+const verifyHmacSignature = async (data: string, secret: string, signature: string): Promise<boolean> => {
+  try {
+    const expectedSignature = await createHmacSignature(data, secret);
+    return expectedSignature === signature;
+  } catch (error) {
+    console.error('Fehler beim Überprüfen der HMAC-Signatur:', error);
+    return false;
+  }
 };
 
 // Alle Telefonnummern abrufen
@@ -489,137 +626,224 @@ export const markCallStarted = (phone_number: string): Promise<void> => {
 };
 
 // Backup erstellen
-export const createBackup = (): Promise<BackupData> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        `SELECT id, phone_number, last_call_time, created_at FROM call_notes`,
-        [],
-        (_, callNotesResult) => {
-          const callNotes: BackupCallNote[] = [];
-          const callNoteMap: { [key: number]: BackupCallNote } = {};
+export const createBackup = async (): Promise<SignedBackupData> => {
+  try {
+    const backupData = await new Promise<BackupData>((resolve, reject) => {
+      db.transaction(tx => {
+        tx.executeSql(
+          `SELECT id, phone_number, last_call_time, created_at FROM call_notes`,
+          [],
+          (_, callNotesResult) => {
+            const callNotes: BackupCallNote[] = [];
+            const callNoteMap: { [key: number]: BackupCallNote } = {};
 
-          for (let i = 0; i < callNotesResult.rows.length; i++) {
-            const row = callNotesResult.rows.item(i);
-            const callNote: BackupCallNote = {
-              id: row.id,
-              phone_number: row.phone_number,
-              last_call_time: row.last_call_time,
-              created_at: row.created_at,
-              notes: []
-            };
-            callNotes.push(callNote);
-            callNoteMap[row.id] = callNote;
-          }
-
-          tx.executeSql(
-            `SELECT call_note_id, id, note_id, text, created_at, updated_at FROM notes`,
-            [],
-            (_, notesResult) => {
-              for (let i = 0; i < notesResult.rows.length; i++) {
-                const row = notesResult.rows.item(i);
-                const callNote = callNoteMap[row.call_note_id];
-                if (callNote) {
-                  callNote.notes.push({
-                    id: row.id,
-                    note_id: row.note_id,
-                    text: row.text,
-                    created_at: row.created_at,
-                    updated_at: row.updated_at
-                  });
-                }
-              }
-
-              const backup: BackupData = {
-                version: '1.0.0',
-                created_at: new Date().toISOString(),
-                call_notes: callNotes
+            for (let i = 0; i < callNotesResult.rows.length; i++) {
+              const row = callNotesResult.rows.item(i);
+              const callNote: BackupCallNote = {
+                id: row.id,
+                phone_number: row.phone_number,
+                last_call_time: row.last_call_time,
+                created_at: row.created_at,
+                notes: []
               };
-              resolve(backup);
-            },
-            (_, error) => {
-              console.error('Fehler beim Abrufen der Notizen für Backup:', error);
-              reject(error);
-              return false;
+              callNotes.push(callNote);
+              callNoteMap[row.id] = callNote;
             }
-          );
-        },
-        (_, error) => {
-          console.error('Fehler beim Abrufen der call_notes für Backup:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-};
 
-// Backup wiederherstellen
-export const restoreBackup = (backupData: BackupData, merge: boolean = false): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      if (!merge) {
-        // Löschen aller bestehenden Daten
-        tx.executeSql(
-          `DELETE FROM notes`,
-          [],
-          () => {},
-          (_, error) => {
-            console.error('Fehler beim Löschen der Notizen:', error);
-            return false;
-          }
-        );
-        tx.executeSql(
-          `DELETE FROM call_notes`,
-          [],
-          () => {},
-          (_, error) => {
-            console.error('Fehler beim Löschen der call_notes:', error);
-            return false;
-          }
-        );
-      }
-
-      // Wiederherstellen der Daten
-      let completed = 0;
-      const total = backupData.call_notes.length;
-
-      if (total === 0) {
-        resolve();
-        return;
-      }
-
-      backupData.call_notes.forEach((callNoteData, index) => {
-        tx.executeSql(
-          `INSERT OR REPLACE INTO call_notes (id, phone_number, last_call_time, created_at) VALUES (?, ?, ?, ?)`,
-          [callNoteData.id, callNoteData.phone_number, callNoteData.last_call_time, callNoteData.created_at],
-          () => {
-            callNoteData.notes.forEach(noteData => {
-              tx.executeSql(
-                `INSERT OR REPLACE INTO notes (id, call_note_id, note_id, text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-                [noteData.id, callNoteData.id, noteData.note_id, noteData.text, noteData.created_at, noteData.updated_at],
-                () => {},
-                (_, error) => {
-                  console.error('Fehler beim Wiederherstellen der Notiz:', error);
-                  return false;
+            tx.executeSql(
+              `SELECT call_note_id, id, note_id, text, created_at, updated_at FROM notes`,
+              [],
+              (_, notesResult) => {
+                for (let i = 0; i < notesResult.rows.length; i++) {
+                  const row = notesResult.rows.item(i);
+                  const callNote = callNoteMap[row.call_note_id];
+                  if (callNote) {
+                    callNote.notes.push({
+                      id: row.id,
+                      note_id: row.note_id,
+                      text: row.text,
+                      created_at: row.created_at,
+                      updated_at: row.updated_at
+                    });
+                  }
                 }
-              );
-            });
 
-            completed++;
-            if (completed === total) {
-              resolve();
-            }
+                const backup: BackupData = {
+                  version: '1.0.0',
+                  created_at: new Date().toISOString(),
+                  call_notes: callNotes
+                };
+                resolve(backup);
+              },
+              (_, error) => {
+                console.error('Fehler beim Abrufen der Notizen für Backup:', error);
+                reject(error);
+                return false;
+              }
+            );
           },
           (_, error) => {
-            console.error('Fehler beim Wiederherstellen der call_note:', error);
+            console.error('Fehler beim Abrufen der call_notes für Backup:', error);
             reject(error);
             return false;
           }
         );
       });
     });
-  });
+
+    // Backup-Daten als JSON-String serialisieren
+    const backupJson = JSON.stringify(backupData);
+
+    // SHA-256 Hash erstellen
+    const hash = await createHash(backupJson);
+
+    // Secret abrufen oder erstellen
+    const secret = await getOrCreateSecret();
+
+    // HMAC-Signatur erstellen
+    const signature = await createHmacSignature(backupJson, secret);
+
+    return {
+      backup: backupData,
+      hash: hash,
+      signature: signature
+    };
+  } catch (error) {
+    console.error('Fehler beim Erstellen des signierten Backups:', error);
+    throw error;
+  }
+};
+
+// Signatur eines Backups überprüfen
+export const verifyBackupSignature = async (backupData: BackupData, signature: string, hash?: string): Promise<boolean> => {
+  try {
+    // Backup-Daten als JSON-String serialisieren
+    const backupJson = JSON.stringify(backupData);
+
+    // Optional: Hash überprüfen
+    if (hash) {
+      const computedHash = await createHash(backupJson);
+      if (computedHash !== hash) {
+        console.error('Hash-Überprüfung fehlgeschlagen: Backup-Daten wurden manipuliert');
+        return false;
+      }
+    }
+
+    // Secret abrufen
+    const secret = await getOrCreateSecret();
+
+    // Signatur überprüfen
+    const isValid = await verifyHmacSignature(backupJson, secret, signature);
+
+    if (!isValid) {
+      console.error('Signatur-Überprüfung fehlgeschlagen: Backup ist nicht vertrauenswürdig');
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error('Fehler beim Überprüfen der Backup-Signatur:', error);
+    return false;
+  }
+};
+
+// Backup wiederherstellen
+export const restoreBackup = async (backupData: BackupData | SignedBackupData, merge: boolean = false, skipSignatureCheck: boolean = false): Promise<void> => {
+  try {
+    // Extrahiere BackupData aus SignedBackupData falls vorhanden
+    let actualBackupData: BackupData;
+    let signature: string | undefined;
+    let hash: string | undefined;
+
+    if ('backup' in backupData && 'signature' in backupData) {
+      const signedData = backupData as SignedBackupData;
+      actualBackupData = signedData.backup;
+      signature = signedData.signature;
+      hash = signedData.hash;
+    } else {
+      actualBackupData = backupData as BackupData;
+    }
+
+    // Signaturprüfung durchführen (außer wenn explizit übersprungen)
+    if (signature && !skipSignatureCheck) {
+      const isValid = await verifyBackupSignature(actualBackupData, signature, hash);
+      if (!isValid) {
+        throw new Error('Backup-Signatur ist ungültig. Das Backup könnte manipuliert worden sein.');
+      }
+    } else if (!skipSignatureCheck) {
+      console.warn('Keine Signatur gefunden. Backup wird ohne Signaturprüfung wiederhergestellt.');
+      // Für Abwärtskompatibilität: alte Backups ohne Signatur werden akzeptiert
+      // aber mit einer Warnung
+    }
+
+    // Datenbank-Transaktion für die Wiederherstellung
+    await new Promise<void>((resolve, reject) => {
+      db.transaction(tx => {
+        if (!merge) {
+          // Löschen aller bestehenden Daten
+          tx.executeSql(
+            `DELETE FROM notes`,
+            [],
+            () => {},
+            (_, error) => {
+              console.error('Fehler beim Löschen der Notizen:', error);
+              return false;
+            }
+          );
+          tx.executeSql(
+            `DELETE FROM call_notes`,
+            [],
+            () => {},
+            (_, error) => {
+              console.error('Fehler beim Löschen der call_notes:', error);
+              return false;
+            }
+          );
+        }
+
+        // Wiederherstellen der Daten
+        let completed = 0;
+        const total = actualBackupData.call_notes.length;
+
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        actualBackupData.call_notes.forEach((callNoteData, index) => {
+          tx.executeSql(
+            `INSERT OR REPLACE INTO call_notes (id, phone_number, last_call_time, created_at) VALUES (?, ?, ?, ?)`,
+            [callNoteData.id, callNoteData.phone_number, callNoteData.last_call_time, callNoteData.created_at],
+            () => {
+              callNoteData.notes.forEach(noteData => {
+                tx.executeSql(
+                  `INSERT OR REPLACE INTO notes (id, call_note_id, note_id, text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                  [noteData.id, callNoteData.id, noteData.note_id, noteData.text, noteData.created_at, noteData.updated_at],
+                  () => {},
+                  (_, error) => {
+                    console.error('Fehler beim Wiederherstellen der Notiz:', error);
+                    return false;
+                  }
+                );
+              });
+
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            },
+            (_, error) => {
+              console.error('Fehler beim Wiederherstellen der call_note:', error);
+              reject(error);
+              return false;
+            }
+          );
+        });
+      });
+    });
+  } catch (error) {
+    console.error('Fehler beim Wiederherstellen des Backups:', error);
+    throw error;
+  }
 };
 
 // Hilfsfunktion zum Generieren einer eindeutigen Note-ID
